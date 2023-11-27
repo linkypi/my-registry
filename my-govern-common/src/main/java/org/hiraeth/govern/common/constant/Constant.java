@@ -8,4 +8,5 @@ package org.hiraeth.govern.common.constant;
  */
 public class Constant {
     public static final String NODE_TYPE = "node.type";
+public static final String MASTER_NODE_SERVERS = "master.node.servers";
 }
