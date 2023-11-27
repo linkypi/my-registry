@@ -1,5 +1,8 @@
 package org.hiraeth.govern.server.config;
 
+import com.beust.jcommander.Parameter;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.NodeType;
 import org.hiraeth.govern.common.util.StringUtil;
@@ -21,16 +24,25 @@ import static org.hiraeth.govern.common.constant.Constant.NODE_TYPE;
  */
 @Slf4j
 @Component
+@Getter
+@Setter
 public class Configuration {
 
+    @Parameter(names = { "-f", "--config" }, description = "config file")
+    private String configPath;
     /**
      * 节点类型: master / slave
      */
     private NodeType nodeType;
 
 
-    public void parse(String configPath) throws Exception {
+    public void parse() throws Exception {
         try{
+            if (StringUtil.isEmpty(configPath)) {
+                throw new ConfigurationException("config file path cannot be empty.");
+            }
+
+            log.info("parsing config file: {}", configPath);
             File configFile = new File(configPath);
             if(!configFile.exists()){
                 throw new IllegalArgumentException("config file "+ configPath + "doesn't exist...");

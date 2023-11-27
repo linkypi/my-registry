@@ -1,8 +1,7 @@
 package org.hiraeth.govern.server;
 
+import com.beust.jcommander.JCommander;
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.common.constant.NodeType;
-import org.hiraeth.govern.common.util.StringUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.config.ConfigurationException;
 import org.springframework.boot.SpringApplication;
@@ -26,12 +25,12 @@ public class GovernServer {
             ConfigurableApplicationContext context = SpringApplication.run(GovernServer.class);
             Configuration configuration = context.getBean(Configuration.class);
 
-            String configPath = args[0];
-            if (StringUtil.isEmpty(configPath)) {
-                throw new ConfigurationException("config file path cannot be empty.");
-            }
+            JCommander.newBuilder()
+                    .addObject(configuration)
+                    .build()
+                    .parse(args);
 
-            configuration.parse(configPath);
+            configuration.parse();
 
         } catch (ConfigurationException ex) {
             log.error("config file not found", ex);
