@@ -9,8 +9,14 @@ import org.hiraeth.govern.common.util.StringUtil;
  * @date: 2023/11/27 12:32
  */
 public enum NodeType {
-    Master,
-    Slave;
+    Master("master"),
+    Slave("slave");
+
+    private String value;
+
+    NodeType(String value){
+        this.value = value;
+    }
 
     public static NodeType of(String value){
         if(StringUtil.isEmpty(value)){
@@ -18,7 +24,7 @@ public enum NodeType {
         }
 
         for (NodeType item: NodeType.values()){
-            if(item.name().toUpperCase().equals(value.toUpperCase())){
+            if(item.value.equalsIgnoreCase(value)){
                 return item;
             }
         }

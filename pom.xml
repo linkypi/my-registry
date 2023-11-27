@@ -26,6 +26,13 @@
 
   <dependencies>
 
+    <!-- https://mvnrepository.com/artifact/cn.hutool/hutool-all -->
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-all</artifactId>
+      <version>5.8.23</version>
+    </dependency>
+
     <dependency>
       <groupId>com.beust</groupId>
       <artifactId>jcommander</artifactId>
