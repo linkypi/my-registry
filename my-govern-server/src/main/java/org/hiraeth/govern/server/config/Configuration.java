@@ -7,17 +7,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
 import org.hiraeth.govern.common.constant.NodeType;
 import org.hiraeth.govern.common.util.StringUtil;
-import org.hiraeth.govern.server.node.master.MasterNode;
-import org.springframework.stereotype.Component;
+import org.hiraeth.govern.server.node.NodeAddress;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.hiraeth.govern.common.constant.Constant.NODE_ID;
 import static org.hiraeth.govern.common.constant.Constant.NODE_TYPE;
@@ -29,7 +30,6 @@ import static org.hiraeth.govern.common.constant.Constant.NODE_TYPE;
  * @date: 2023/11/27 11:57
  */
 @Slf4j
-@Component
 @Getter
 @Setter
 public class Configuration {
@@ -43,7 +43,15 @@ public class Configuration {
      */
     private NodeType nodeType;
     private int nodeId;
-    private List<String> masterNodeServers;
+    private List<NodeAddress> masterNodeServers;
+
+    private static class Singleton {
+        private static Configuration instance = new Configuration();
+    }
+
+    public static Configuration getInstance() {
+        return Singleton.instance;
+    }
 
     /**
      * for example:
@@ -69,11 +77,12 @@ public class Configuration {
             this.nodeType = nodeTypeEnum;
 
             String nodeIdStr = configProperties.getProperty(NODE_ID);
-            if(validateNodeId(nodeIdStr)) {
+            if (validateNodeId(nodeIdStr)) {
                 this.nodeId = Integer.parseInt(nodeIdStr);
             }
 
             parseMasterNodeServer(configProperties);
+
         } catch (IllegalArgumentException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);
         } catch (FileNotFoundException ex) {
@@ -131,5 +140,55 @@ public class Configuration {
                 throw new IllegalArgumentException(Constant.MASTER_NODE_SERVERS + " parameters " + item + " is invalid.");
             }
         }
+        for (String item : arr) {
+            masterNodeServers.add(new NodeAddress(item));
+        }
+    }
+
+    public NodeAddress getCurrentNodeAddress() {
+        for (NodeAddress item : masterNodeServers) {
+            if (nodeId == item.getNodeId()) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 获取比当前node.id较小的节点地址
+     *
+     * @return
+     */
+    public List<NodeAddress> getLowerIdMasterAddress() {
+        return masterNodeServers.stream().filter(a -> a.getNodeId() < nodeId).collect(Collectors.toList());
+//        masterNodeServers.sort((a, b) -> {
+//            return a.getNodeId() - b.getNodeId();
+//        });
+//
+//        int index = 0;
+//        for (NodeAddress item : masterNodeServers) {
+//            if (nodeId == item.getNodeId()) {
+//                if (index == 0) {
+//                    return null;
+//                }
+//                return masterNodeServers.get(index - 1);
+//            }
+//            index++;
+//        }
+//        return null;
+    }
+
+    public Integer getNodeIdByHostName(String hostname) {
+        Optional<NodeAddress> first = masterNodeServers.stream()
+                .filter(a -> a.getHostname().equals(hostname)).findFirst();
+        if (first.isPresent()) {
+            return first.get().getNodeId();
+        }
+        return null;
+    }
+
+    public List<Integer> getAllTheOtherNodeIds() {
+        return masterNodeServers.stream().map(NodeAddress::getNodeId)
+                .filter(a -> a != nodeId).collect(Collectors.toList());
     }
 }

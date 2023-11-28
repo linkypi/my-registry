@@ -13,7 +13,7 @@ import org.hiraeth.govern.server.node.NodeStatus;
 @Getter
 @Setter
 public class Node {
-    private NodeStatus nodeStatus;
+    private volatile NodeStatus nodeStatus;
     private String ip;
     private int port;
     private int port2;

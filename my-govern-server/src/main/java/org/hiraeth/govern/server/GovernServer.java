@@ -6,8 +6,10 @@ import org.hiraeth.govern.common.constant.NodeType;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.config.ConfigurationException;
 import org.hiraeth.govern.server.node.NodeStatus;
+import org.hiraeth.govern.server.node.NodeStatusManager;
 import org.hiraeth.govern.server.node.master.MasterNode;
 import org.hiraeth.govern.server.node.master.Node;
+import org.hiraeth.govern.server.node.master.SlaveNode;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -26,6 +28,7 @@ public class GovernServer {
     private static final int SHUTDOWN_CHECK_INTERVAL = 500;
 
     public static void main(String[] args) {
+        NodeStatusManager statusManager = NodeStatusManager.getInstance();
         try {
 
             ConfigurableApplicationContext context = SpringApplication.run(GovernServer.class);
@@ -36,16 +39,15 @@ public class GovernServer {
                     .build()
                     .parse(args);
 
-            Node node = new Node();
+            statusManager.setNodeStatus(NodeStatus.INITIALIZING);
             configuration.parse();
 
             if(configuration.getNodeType() == NodeType.Master){
-                node = new MasterNode();
-                ((MasterNode) node).start();
+                new MasterNode().start();
             }else{
-
+                new SlaveNode().start();
             }
-            node.setNodeStatus(NodeStatus.RUNNING);
+            NodeStatusManager.getInstance().setNodeStatus(NodeStatus.RUNNING);
 
         } catch (ConfigurationException ex) {
             log.error("config file not found", ex);
@@ -53,6 +55,12 @@ public class GovernServer {
         }catch (Exception ex){
             log.error("start govern server occur error", ex);
             System.exit(1);
+        }
+
+        if(statusManager.getNodeStatus() == NodeStatus.SHUTDOWN){
+            log.info("system is going to shutdown normally.");
+        }else if(statusManager.getNodeStatus() == NodeStatus.FATAL){
+            log.error("system is going to shutdown because of fatal error.");
         }
     }
 

@@ -9,11 +9,10 @@ package org.hiraeth.govern.server.node;
 public enum NodeStatus {
     INITIALIZING(0),
     RUNNING(1),
-    SHUTDOWN(2);
+    SHUTDOWN(2),
+    FATAL(3);
     private int value;
     NodeStatus(int val){
         this.value = val;
     }
-
-
 }
