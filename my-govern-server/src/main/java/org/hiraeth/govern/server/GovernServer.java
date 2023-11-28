@@ -27,7 +27,6 @@ public class GovernServer {
     private static final int SHUTDOWN_CHECK_INTERVAL = 500;
 
     public static void main(String[] args) {
-        NodeStatusManager statusManager = NodeStatusManager.getInstance();
         try {
 
             Configuration configuration = Configuration.getInstance();
@@ -36,16 +35,16 @@ public class GovernServer {
                     .build()
                     .parse(args);
 
-            statusManager.setNodeStatus(NodeStatus.INITIALIZING);
+            NodeStatusManager.setNodeStatus(NodeStatus.INITIALIZING);
             configuration.parse();
 
-            statusManager.setNodeStatus(NodeStatus.RUNNING);
+            NodeStatusManager.setNodeStatus(NodeStatus.RUNNING);
             if(configuration.getNodeType() == NodeType.Master){
                 new MasterNode().start();
             }else{
                 new SlaveNode().start();
             }
-            NodeStatusManager.getInstance().setNodeStatus(NodeStatus.RUNNING);
+            NodeStatusManager.setNodeStatus(NodeStatus.RUNNING);
 
         } catch (ConfigurationException ex) {
             log.error("configuration exception", ex);
@@ -55,15 +54,15 @@ public class GovernServer {
             System.exit(1);
         }
 
-        if(statusManager.getNodeStatus() == NodeStatus.SHUTDOWN){
+        if(NodeStatusManager.getNodeStatus() == NodeStatus.SHUTDOWN){
             log.info("system is going to shutdown normally.");
-        }else if(statusManager.getNodeStatus() == NodeStatus.FATAL){
+        }else if(NodeStatusManager.getNodeStatus() == NodeStatus.FATAL){
             log.error("system is going to shutdown because of fatal error.");
         }
     }
 
     private void waitForShutdown() throws InterruptedException {
-        while (NodeStatusManager.getInstance().getNodeStatus() == NodeStatus.RUNNING){
+        while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING){
             Thread.sleep(SHUTDOWN_CHECK_INTERVAL);
         }
     }

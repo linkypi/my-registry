@@ -1,5 +1,8 @@
 package org.hiraeth.govern.server.node.master;
 
+import org.hiraeth.govern.server.config.Configuration;
+import org.hiraeth.govern.server.node.MasterRole;
+
 /**
  * @author: lynch
  * @description:
@@ -8,9 +11,20 @@ package org.hiraeth.govern.server.node.master;
 public class MasterNode extends Node{
 
     private MasterNetworkManager masterNetworkManager;
+    /**
+     * controller候选者
+     */
+    protected ControllerCandidate controllerCandidate;
+
+    /**
+     * 远程master节点管理组件
+     */
+    private final RemoteMasterNodeManager remoteMasterNodeManager;
 
     public MasterNode(){
-        this.masterNetworkManager = new MasterNetworkManager();
+        this.remoteMasterNodeManager = new RemoteMasterNodeManager();
+        this.masterNetworkManager = new MasterNetworkManager(remoteMasterNodeManager);
+        this.controllerCandidate = new ControllerCandidate(masterNetworkManager, remoteMasterNodeManager);
     }
 
     @Override
@@ -23,5 +37,13 @@ public class MasterNode extends Node{
         }
         // 等待其他master节点都连接完成
         masterNetworkManager.waitAllTheOtherNodesConnected();
+
+        // 投票选举 Controller
+        Configuration configuration = Configuration.getInstance();
+        boolean isControllerCandidate = configuration.isControllerCandidate();
+        if(isControllerCandidate) {
+            MasterRole masterRole = controllerCandidate.voteForControllerElection();
+
+        }
     }
 }

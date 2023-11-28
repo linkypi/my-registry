@@ -13,22 +13,7 @@ import org.hiraeth.govern.server.node.NodeStatus;
 @Getter
 @Setter
 public class Node {
-    private volatile NodeStatus nodeStatus;
-    private String ip;
-    private int port;
-    private int port2;
-    /**
-     * controller候选者
-     */
-    private ControllerCandidate controllerCandidate;
-    /**
-     * 集群内部节点之间进行网络通信的组件
-     */
-    private MasterNetworkManager masterNetworkManager;
-
     public Node(){
-        this.nodeStatus = NodeStatus.INITIALIZING;
-        this.controllerCandidate = new ControllerCandidate(masterNetworkManager);
     }
 
     protected void start(){

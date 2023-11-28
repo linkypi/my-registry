@@ -21,8 +21,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.hiraeth.govern.common.constant.Constant.NODE_ID;
-import static org.hiraeth.govern.common.constant.Constant.NODE_TYPE;
+import static org.hiraeth.govern.common.constant.Constant.*;
 
 /**
  * @author: leo
@@ -46,6 +45,7 @@ public class Configuration {
      */
     private NodeType nodeType;
     private int nodeId;
+    private boolean isControllerCandidate;
     private List<NodeAddress> masterNodeServers = new ArrayList<>();
 
     private static class Singleton {
@@ -66,23 +66,30 @@ public class Configuration {
         try {
             Properties configProperties = loadConfigFile();
 
+            // 解析 node.type
             String nodeType = configProperties.getProperty(NODE_TYPE);
             if (StringUtil.isEmpty(nodeType)) {
                 throw new IllegalArgumentException("node.type cannot be empty.");
             }
-
             NodeType nodeTypeEnum = NodeType.of(nodeType);
             if (nodeTypeEnum == null) {
                 throw new IllegalArgumentException("node.type must be master or slave.");
             }
-
+            log.debug("parameter {} = {}", NODE_TYPE, nodeType);
             this.nodeType = nodeTypeEnum;
 
+            // 解析 controller.candidate
+            String isControllerCandidateStr = configProperties.getProperty(IS_CONTROLLER_CANDIDATE);
+            validateIsControllerCandidate(isControllerCandidateStr);
+            this.isControllerCandidate = Boolean.parseBoolean(isControllerCandidateStr);
+            log.debug("parameter {} = {}", IS_CONTROLLER_CANDIDATE, isControllerCandidateStr);
+
+            // 解析 node.id
             String nodeIdStr = configProperties.getProperty(NODE_ID);
             if (validateNodeId(nodeIdStr)) {
                 this.nodeId = Integer.parseInt(nodeIdStr);
             }
-
+            log.debug("parameter {} = {}", NODE_ID, nodeIdStr);
             parseMasterNodeServer(configProperties);
 
         } catch (IllegalArgumentException ex) {
@@ -92,6 +99,17 @@ public class Configuration {
         } catch (IOException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);
         }
+    }
+
+    private boolean validateIsControllerCandidate(String isControllerCandidate) {
+        if(StringUtil.isEmpty(isControllerCandidate)){
+            return true;
+        }
+
+        if("true".equals(isControllerCandidate) || "false".equals(isControllerCandidate)){
+            return true;
+        }
+        throw new IllegalArgumentException("controller.candidate must be true or false, not "+ isControllerCandidate);
     }
 
     private boolean validateNodeId(String nodeId) {
@@ -163,21 +181,6 @@ public class Configuration {
      */
     public List<NodeAddress> getLowerIdMasterAddress() {
         return masterNodeServers.stream().filter(a -> a.getNodeId() < nodeId).collect(Collectors.toList());
-//        masterNodeServers.sort((a, b) -> {
-//            return a.getNodeId() - b.getNodeId();
-//        });
-//
-//        int index = 0;
-//        for (NodeAddress item : masterNodeServers) {
-//            if (nodeId == item.getNodeId()) {
-//                if (index == 0) {
-//                    return null;
-//                }
-//                return masterNodeServers.get(index - 1);
-//            }
-//            index++;
-//        }
-//        return null;
     }
 
     public Integer getMasterNodeIdByIpPort(String ip, int port) {
