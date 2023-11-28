@@ -14,26 +14,31 @@ import lombok.extern.slf4j.Slf4j;
 @Setter
 public class NodeAddress {
     private int nodeId;
-    // 主机或IP
-    private String hostname;
-    private int masterMasterPort;
-    private int masterSlavaPort;
+    private String host;
+    /**
+     * master节点之间通信的端口
+     */
+    private int masterPort;
+    /**
+     * slave与master直接通信的端口
+     */
+    private int slavaPort;
     /**
      * 外部通信地址
      */
     private int externalPort;
 
     public NodeAddress(String address) {
-        // 1:localhost:2156:2356:2556
+        // 1:127.0.0.1:2156:2356:2556
         String[] arr = address.split(":");
         if (arr.length == 0) {
             log.warn("address is empty, cannot create node address: {}", address);
             return;
         }
-        this.hostname = arr[1];
+        this.host = arr[1];
         this.nodeId = Integer.parseInt(arr[0]);
-        this.masterMasterPort = Integer.parseInt(arr[2]);
-        this.masterSlavaPort = Integer.parseInt(arr[3]);
+        this.masterPort = Integer.parseInt(arr[2]);
+        this.slavaPort = Integer.parseInt(arr[3]);
         this.externalPort = Integer.parseInt(arr[4]);
     }
 }

@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
@@ -34,6 +35,8 @@ import static org.hiraeth.govern.common.constant.Constant.NODE_TYPE;
 @Setter
 public class Configuration {
 
+    private Configuration(){
+    }
     @Parameter(names = {"-f", "--config"}, description = "config file path," +
             " ex: /path/to/config.properties, /path/to/config.cnf...")
     private String configPath;
@@ -43,7 +46,7 @@ public class Configuration {
      */
     private NodeType nodeType;
     private int nodeId;
-    private List<NodeAddress> masterNodeServers;
+    private List<NodeAddress> masterNodeServers = new ArrayList<>();
 
     private static class Singleton {
         private static Configuration instance = new Configuration();
@@ -56,9 +59,8 @@ public class Configuration {
     /**
      * for example:
      * 1:192.168.10.100:2156:2356:2556
-     * 1:localhost:2156:2356:2556
      */
-    private static Pattern REGEX_COMPILE = Pattern.compile("(\\d+):((\\d+\\.\\d+\\.\\d+\\.\\d+)|\\w+):(\\d+):(\\d+):(\\d+)");
+    private static Pattern REGEX_COMPILE = Pattern.compile("(\\d+):(\\d+\\.\\d+\\.\\d+\\.\\d+):(\\d+):(\\d+):(\\d+)");
 
     public void parse() throws Exception {
         try {
@@ -178,9 +180,9 @@ public class Configuration {
 //        return null;
     }
 
-    public Integer getNodeIdByHostName(String hostname) {
+    public Integer getMasterNodeIdByIpPort(String ip, int port) {
         Optional<NodeAddress> first = masterNodeServers.stream()
-                .filter(a -> a.getHostname().equals(hostname)).findFirst();
+                .filter(a -> (a.getHost() + a.getMasterPort()).equals(ip + port)).findFirst();
         if (first.isPresent()) {
             return first.get().getNodeId();
         }

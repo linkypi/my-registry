@@ -1,11 +1,14 @@
 package org.hiraeth.govern.server.node.master;
 
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.common.util.CollectionUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.NodeAddress;
 import org.hiraeth.govern.server.node.NodeStatus;
 import org.hiraeth.govern.server.node.NodeStatusManager;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -15,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 /**
  * 1. 与其他master节点建立连接, 避免出现重复连接
@@ -74,95 +78,132 @@ public class MasterNetworkManager {
      * 等待成功连接其他所有节点
      */
     public void waitAllTheOtherNodesConnected() {
-
-        List<Integer> allTheOtherNodeIds = Configuration.getInstance().getAllTheOtherNodeIds();
         NodeStatusManager statusManager = NodeStatusManager.getInstance();
-        while (statusManager.getNodeStatus() == NodeStatus.RUNNING){
+        while (statusManager.getNodeStatus() == NodeStatus.RUNNING) {
 
             boolean allTheOtherNodesConnected = true;
-            for (Integer nodeId: allTheOtherNodeIds){
-                if (!remoteMasterNodeSockets.containsKey(nodeId)) {
-                    allTheOtherNodesConnected = false;
+            List<Integer> allTheOtherNodeIds = Configuration.getInstance().getAllTheOtherNodeIds();
+            if (CollectionUtil.notEmpty(allTheOtherNodeIds)) {
+                for (Integer nodeId : allTheOtherNodeIds) {
+                    if (!remoteMasterNodeSockets.containsKey(nodeId)) {
+                        allTheOtherNodesConnected = false;
+                        break;
+                    }
+                }
+                if (allTheOtherNodesConnected) {
+                    log.info("established connection with all the other master nodes.");
                     break;
                 }
             }
-
-            if(allTheOtherNodesConnected){
-                log.info("established connection with all the other master nodes.");
-                break;
-            }
-            log.info("waiting for establishing connection with all the other master nodes.");
+            List<Integer> reminds = allTheOtherNodeIds.stream().filter(a -> !remoteMasterNodeSockets.containsKey(a)).collect(Collectors.toList());
+            log.info("waiting for establishing connection with all the other master nodes: {}", reminds);
             try {
                 Thread.sleep(CHECK_ALL_OTHER_NODES_CONNECT_INTERVAL);
             } catch (InterruptedException e) {
                 log.error("thread interrupted when check all the other master nodes connection status", e);
             }
         }
-
-
-
     }
 
-    private boolean addRemoteNodeSocket(Socket socket) {
-        InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
-        String hostName = remoteAddress.getHostName();
-        Integer remoteNodeId = Configuration.getInstance().getNodeIdByHostName(hostName);
-        if(remoteNodeId == null){
-            // 此时直接认定整个集群启动失败
-            log.error("established connection is not in the right remote address: {}, " +
-                    "because cannot found the node id by hostname: {}", remoteAddress, hostName);
-            try {
-                socket.close();
-            }catch (IOException ex){
-                log.error("closing connection in unknown remote address {} failed, " +
-                        "because cannot found the node id by hostname: {}", remoteAddress, hostName);
-            }
-            return false;
-        }
-
+    private void addRemoteNodeSocket(int remoteNodeId, Socket socket) {
+        log.info("add remote master node socket, remote node id: {}, address: {}", remoteNodeId, socket.getRemoteSocketAddress());
         this.remoteMasterNodeSockets.put(remoteNodeId, socket);
-        return true;
     }
 
-    private boolean connectMasterNode(NodeAddress nodeAddress) {
+    private boolean connectMasterNode(NodeAddress remoteNodeAddress) {
 
-        log.info("connecting lower node id master node {}:{}", nodeAddress.getHostname(), nodeAddress.getMasterMasterPort());
+        log.info("connecting lower node id master node {}:{}", remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
 
+        boolean fatalError = false;
         int retries = 0;
         NodeStatusManager statusManager = NodeStatusManager.getInstance();
         while (statusManager.getNodeStatus() == NodeStatus.RUNNING && retries <= DEFAULT_RETRIES) {
             try {
-                InetSocketAddress endpoint = new InetSocketAddress(nodeAddress.getHostname(), nodeAddress.getMasterMasterPort());
+                InetSocketAddress endpoint = new InetSocketAddress(remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
 
                 Socket socket = new Socket();
+                socket.setTcpNoDelay(true);
                 socket.setReuseAddress(true);
                 socket.connect(endpoint, CONNECT_TIMEOUT);
 
-                // 为网络连接启动读写IO线程
-                startIOThreads(socket);
+                // 发送自己的id给对方
+                if(!sendMyNodeId(socket)){
+                    fatalError = true;
+                    break;
+                }
 
                 // 维护当前连接
-                addRemoteNodeSocket(socket);
+                addRemoteNodeSocket(remoteNodeAddress.getNodeId(), socket);
 
+                // 为网络连接启动读写IO线程
+                startIOThreads(socket);
                 return true;
             } catch (IOException ex) {
 
-                log.error("connect master node({}:{}) error", nodeAddress.getHostname(), nodeAddress.getMasterMasterPort());
+                log.error("connect master node({}:{}) error", remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
                 retries++;
                 if (retries <= DEFAULT_RETRIES) {
                     log.error("this is {} times retry to connect other master node({}:{}).",
-                            retries, nodeAddress.getHostname(), nodeAddress.getMasterMasterPort());
+                            retries, remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
                 }
             }
             return false;
         }
 
-        if (!retryConnectMasterNodes.contains(nodeAddress)) {
-            retryConnectMasterNodes.add(nodeAddress);
+        // 系统异常崩溃
+        if(fatalError) {
+            NodeStatusManager nodeStatus = NodeStatusManager.getInstance();
+            nodeStatus.setNodeStatus(NodeStatus.FATAL);
+            return false;
+        }
+
+        if (!retryConnectMasterNodes.contains(remoteNodeAddress)) {
+            retryConnectMasterNodes.add(remoteNodeAddress);
             log.warn("connect to master node({}:{}) failed, add it into retry connect master node list.",
-                    nodeAddress.getHostname(), nodeAddress.getMasterMasterPort());
+                    remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
         }
         return false;
+    }
+
+    /**
+     * 向master机器发送自身 nodeId
+     * @param socket
+     * @return
+     */
+    private boolean sendMyNodeId(Socket socket) {
+        Configuration configuration = Configuration.getInstance();
+        int nodeId = configuration.getNodeId();
+        DataOutputStream outputStream = null;
+        try {
+            outputStream = new DataOutputStream(socket.getOutputStream());
+            outputStream.writeInt(nodeId);
+            outputStream.flush();
+        }catch (IOException ex){
+            log.error("send self node id to other master node failed.", ex);
+            try {
+                socket.close();
+            }catch (IOException e){
+                log.error("close socket failed when sending self node id to other master node.", e);
+            }
+            return false;
+        }
+        return true;
+    }
+
+    private Integer readRemoteNodeId(Socket socket) {
+        try {
+            DataInputStream inputStream = new DataInputStream(socket.getInputStream());
+            return inputStream.readInt();
+        } catch (IOException e) {
+            log.error("reading remote node id failed", e);
+
+            try {
+                socket.close();
+            } catch(IOException ex) {
+                log.error("closing socket failed when reading remote node id failed......", ex);
+            }
+        }
+        return null;
     }
 
     private void startIOThreads(Socket socket) {
@@ -184,10 +225,10 @@ public class MasterNetworkManager {
                 List<NodeAddress> retrySuccessAddresses = new ArrayList<>();
                 for (NodeAddress nodeAddress : retryConnectMasterNodes) {
                     log.info("scheduled retry connect master node {}:{}.",
-                            nodeAddress.getHostname(), nodeAddress.getMasterMasterPort());
+                            nodeAddress.getHost(), nodeAddress.getMasterPort());
                     if (connectMasterNode(nodeAddress)) {
                         log.info("scheduled retry connect master node success {}:{}.",
-                                nodeAddress.getHostname(), nodeAddress.getMasterMasterPort());
+                                nodeAddress.getHost(), nodeAddress.getMasterPort());
                         retrySuccessAddresses.add(nodeAddress);
                     }
                 }
@@ -205,7 +246,6 @@ public class MasterNetworkManager {
          * 网络连接
          */
         private ServerSocket serverSocket;
-        private volatile boolean running = true;
 
         private static final int DEFAULT_RETRIES = 3;
         private int retries = 0;
@@ -217,14 +257,14 @@ public class MasterNetworkManager {
             NodeStatusManager statusManager = NodeStatusManager.getInstance();
             while (statusManager.getNodeStatus() == NodeStatus.RUNNING && retries <= DEFAULT_RETRIES) {
                 try {
-                    int port = getCurrentMasterNetworkPort();
-                    InetSocketAddress endpoint = new InetSocketAddress(port);
+                    NodeAddress currentNodeAddress = Configuration.getInstance().getCurrentNodeAddress();
+                    InetSocketAddress endpoint = new InetSocketAddress(currentNodeAddress.getHost(), currentNodeAddress.getMasterPort());
 
                     serverSocket = new ServerSocket();
                     serverSocket.setReuseAddress(true);
                     serverSocket.bind(endpoint);
 
-                    log.info("master binding port: {}.", port);
+                    log.info("master binding {}:{}.", currentNodeAddress.getHost(), currentNodeAddress.getMasterPort());
 
                     // 跟发起连接请求的master建立网络连接
                     while (statusManager.getNodeStatus() == NodeStatus.RUNNING){
@@ -234,16 +274,19 @@ public class MasterNetworkManager {
                         socket.setSoTimeout(0); // 读取数据超时时间为0 ,即无数据时阻塞
                         retries = 0;
 
-                        startIOThreads(socket);
-
-                        // 维护建立的连接
-                        if(!addRemoteNodeSocket(socket)){
-                            // 远程master节点添加失败，系统异常崩溃
+                        Integer remoteNodeId = readRemoteNodeId(socket);
+                        if(remoteNodeId == null){
                             fatalError = true;
                             break;
                         }
 
-                        log.info("established connection with master node : {}, io threads started.", socket.getRemoteSocketAddress());
+                        // 维护建立的连接
+                        addRemoteNodeSocket(remoteNodeId, socket);
+
+                        startIOThreads(socket);
+
+                        log.info("established connection with master node : {}, remote node id: {}, io threads started.",
+                               socket.getRemoteSocketAddress(), remoteNodeId);
                     }
                 } catch (IOException e) {
                     log.error("listening for other master node's connection error.", e);
@@ -265,16 +308,11 @@ public class MasterNetworkManager {
             }
 
             NodeStatusManager.getInstance().setNodeStatus(NodeStatus.FATAL);
-            log.error("failed to listen other master node's connection, although retried {} times, going to shutdown system.", DEFAULT_RETRIES);
-        }
-
-        private int getCurrentMasterNetworkPort() {
-            NodeAddress currentNodeAddress = Configuration.getInstance().getCurrentNodeAddress();
-            return currentNodeAddress.getMasterMasterPort();
+            log.error("failed to listen other master node's connection, although retried {} times, going to shutdown.", DEFAULT_RETRIES);
         }
 
         public void shutdown(){
-            this.running = false;
+
         }
     }
 }

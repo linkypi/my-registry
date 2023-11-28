@@ -22,7 +22,6 @@ import org.springframework.context.ConfigurableApplicationContext;
  * @date: 2023/11/27 11:54
  */
 @Slf4j
-@SpringBootApplication
 public class GovernServer {
 
     private static final int SHUTDOWN_CHECK_INTERVAL = 500;
@@ -31,9 +30,7 @@ public class GovernServer {
         NodeStatusManager statusManager = NodeStatusManager.getInstance();
         try {
 
-            ConfigurableApplicationContext context = SpringApplication.run(GovernServer.class);
-            Configuration configuration = context.getBean(Configuration.class);
-
+            Configuration configuration = Configuration.getInstance();
             JCommander.newBuilder()
                     .addObject(configuration)
                     .build()
@@ -42,6 +39,7 @@ public class GovernServer {
             statusManager.setNodeStatus(NodeStatus.INITIALIZING);
             configuration.parse();
 
+            statusManager.setNodeStatus(NodeStatus.RUNNING);
             if(configuration.getNodeType() == NodeType.Master){
                 new MasterNode().start();
             }else{
@@ -50,7 +48,7 @@ public class GovernServer {
             NodeStatusManager.getInstance().setNodeStatus(NodeStatus.RUNNING);
 
         } catch (ConfigurationException ex) {
-            log.error("config file not found", ex);
+            log.error("configuration exception", ex);
             System.exit(2);
         }catch (Exception ex){
             log.error("start govern server occur error", ex);
@@ -64,8 +62,8 @@ public class GovernServer {
         }
     }
 
-    private void waitForShutdown(Node node) throws InterruptedException {
-        while (node.getNodeStatus() == NodeStatus.RUNNING){
+    private void waitForShutdown() throws InterruptedException {
+        while (NodeStatusManager.getInstance().getNodeStatus() == NodeStatus.RUNNING){
             Thread.sleep(SHUTDOWN_CHECK_INTERVAL);
         }
     }
