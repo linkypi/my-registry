@@ -5,9 +5,9 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
-import org.hiraeth.govern.common.constant.NodeType;
+import org.hiraeth.govern.server.node.entity.NodeType;
 import org.hiraeth.govern.common.util.StringUtil;
-import org.hiraeth.govern.server.node.master.entity.NodeAddress;
+import org.hiraeth.govern.server.node.entity.NodeAddress;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -46,6 +46,11 @@ public class Configuration {
     private NodeType nodeType;
     private int nodeId;
     private boolean isControllerCandidate;
+
+    // slave 节点参数
+    private String masterServerAddress;
+    private int masterServerPort;
+
     private List<NodeAddress> masterNodeServers = new ArrayList<>();
 
     private static class Singleton {
@@ -60,7 +65,8 @@ public class Configuration {
      * for example:
      * 1:192.168.10.100:2156:2356:2556
      */
-    private static Pattern REGEX_COMPILE = Pattern.compile("(\\d+):(\\d+\\.\\d+\\.\\d+\\.\\d+):(\\d+):(\\d+):(\\d+)");
+    private static Pattern CLUSTER_REGEX_COMPILE = Pattern.compile("(\\d+):(\\d+\\.\\d+\\.\\d+\\.\\d+):(\\d+):(\\d+):(\\d+)");
+    private static Pattern IP_REGEX_COMPILE = Pattern.compile("\\d+\\.\\d+\\.\\d+\\.\\d+");
 
     public void parse() throws Exception {
         try {
@@ -90,8 +96,12 @@ public class Configuration {
                 this.nodeId = Integer.parseInt(nodeIdStr);
             }
             log.debug("parameter {} = {}", NODE_ID, nodeIdStr);
-            parseMasterNodeServer(configProperties);
 
+            if(this.nodeType == NodeType.Master) {
+                parseMasterNodeServer(configProperties);
+            }else{
+                parseSlaveNodeConfig(configProperties);
+            }
         } catch (IllegalArgumentException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);
         } catch (FileNotFoundException ex) {
@@ -155,13 +165,36 @@ public class Configuration {
             throw new IllegalArgumentException(Constant.MASTER_NODE_SERVERS + " cannot be empty.");
         }
         for (String item : arr) {
-            Matcher matcher = REGEX_COMPILE.matcher(item);
+            Matcher matcher = CLUSTER_REGEX_COMPILE.matcher(item);
             if (!matcher.matches()) {
                 throw new IllegalArgumentException(Constant.MASTER_NODE_SERVERS + " parameters " + item + " is invalid.");
             }
         }
         for (String item : arr) {
             masterNodeServers.add(new NodeAddress(item));
+        }
+    }
+
+    private void parseSlaveNodeConfig(Properties configProperties) {
+        this.masterServerAddress = configProperties.getProperty(MASTER_NODE_ADDRESS);
+        if(StringUtil.isEmpty(masterServerAddress)){
+            throw new IllegalArgumentException(Constant.MASTER_NODE_ADDRESS + " cannot be empty.");
+        }
+        Matcher matcher = IP_REGEX_COMPILE.matcher(masterServerAddress);
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException(Constant.MASTER_NODE_ADDRESS + " parameters "
+                    + masterServerAddress + " is invalid, must be an ip address.");
+        }
+
+        String serverPort = configProperties.getProperty(MASTER_NODE_PORT);
+        if(StringUtil.isEmpty(serverPort)){
+            throw new IllegalArgumentException(Constant.MASTER_NODE_PORT + " cannot be empty.");
+        }
+
+        try {
+            this.masterServerPort = Integer.parseInt(serverPort);
+        }catch (Exception ex){
+            throw new IllegalArgumentException(Constant.MASTER_NODE_PORT + " must be a number.");
         }
     }
 

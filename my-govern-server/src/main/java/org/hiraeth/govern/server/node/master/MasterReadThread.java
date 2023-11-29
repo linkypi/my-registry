@@ -7,7 +7,9 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @author: lynch
@@ -15,15 +17,15 @@ import java.util.concurrent.BlockingQueue;
  * @date: 2023/11/27 22:08
  */
 @Slf4j
-public class MasterNetworkReadThread extends Thread{
+public class MasterReadThread extends Thread{
     /**
      * master节点之间的网络连接
      */
     private Socket socket;
     private DataInputStream inputStream;
-    private BlockingQueue<ByteBuffer> receiveQueue;
+    private Map<Integer,BlockingQueue<ByteBuffer>> receiveQueue;
 
-    public MasterNetworkReadThread(Socket socket, BlockingQueue<ByteBuffer> receiveQueue){
+    public MasterReadThread(Socket socket, Map<Integer, BlockingQueue<ByteBuffer>> receiveQueue){
         this.socket = socket;
         this.receiveQueue = receiveQueue;
         try {
@@ -47,15 +49,17 @@ public class MasterNetworkReadThread extends Thread{
 
                 // 将字节数组封装成byteBuffer
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                receiveQueue.put(buffer);
+                int requestType = buffer.getInt();
+//                buffer.position(0);
+                if(!receiveQueue.containsKey(requestType)){
+                    receiveQueue.put(requestType, new LinkedBlockingQueue<>());
+                }
+                receiveQueue.get(requestType).add(buffer);
 
                 log.info("get message from remote node: {}, message size is {} bytes",
                         socket.getRemoteSocketAddress(), buffer.capacity());
             }catch (IOException ex){
                 log.error("read message from remote node failed.", ex);
-                NodeStatusManager.setFatal();
-            } catch (InterruptedException ex) {
-                log.error("put message into receive queue failed.", ex);
                 NodeStatusManager.setFatal();
             }
         }

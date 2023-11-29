@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.node.master.node;
+package org.hiraeth.govern.server.node.server;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -11,8 +11,8 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-public class Node {
-    public Node(){
+public class NodeServer {
+    public NodeServer(){
     }
 
     protected void start(){

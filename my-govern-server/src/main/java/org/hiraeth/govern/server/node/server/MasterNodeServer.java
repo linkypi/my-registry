@@ -1,12 +1,12 @@
-package org.hiraeth.govern.server.node.master.node;
+package org.hiraeth.govern.server.node.server;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.master.entity.MasterRole;
+import org.hiraeth.govern.server.node.entity.MasterRole;
 import org.hiraeth.govern.server.node.master.ControllerCandidate;
 import org.hiraeth.govern.server.node.master.MasterNetworkManager;
-import org.hiraeth.govern.server.node.master.RemoteMasterNodeManager;
-import org.hiraeth.govern.server.node.master.entity.RemoteMasterNode;
+import org.hiraeth.govern.server.node.master.RemoteNodeManager;
+import org.hiraeth.govern.server.node.entity.RemoteNode;
 
 /**
  * @author: lynch
@@ -14,7 +14,7 @@ import org.hiraeth.govern.server.node.master.entity.RemoteMasterNode;
  * @date: 2023/11/27 17:27
  */
 @Slf4j
-public class MasterNode extends Node{
+public class MasterNodeServer extends NodeServer {
 
     private MasterNetworkManager masterNetworkManager;
     /**
@@ -25,20 +25,21 @@ public class MasterNode extends Node{
     /**
      * 远程master节点管理组件
      */
-    private final RemoteMasterNodeManager remoteMasterNodeManager;
+    private final RemoteNodeManager remoteNodeManager;
 
-    public MasterNode(){
-        this.remoteMasterNodeManager = new RemoteMasterNodeManager();
-        this.masterNetworkManager = new MasterNetworkManager(remoteMasterNodeManager);
-        this.controllerCandidate = new ControllerCandidate(masterNetworkManager, remoteMasterNodeManager);
+    public MasterNodeServer(){
+        this.remoteNodeManager = new RemoteNodeManager();
+        this.masterNetworkManager = new MasterNetworkManager(remoteNodeManager);
+        this.controllerCandidate = new ControllerCandidate(masterNetworkManager, remoteNodeManager);
     }
 
     @Override
     public void start() {
 
         Configuration configuration = Configuration.getInstance();
-        RemoteMasterNode remoteMasterNode = new RemoteMasterNode(configuration.getNodeId(), configuration.isControllerCandidate());
-        remoteMasterNodeManager.addRemoteMasterNode(remoteMasterNode);
+        RemoteNode remoteNode = new RemoteNode(configuration.getNodeId(),
+                configuration.getNodeType(), configuration.isControllerCandidate());
+        remoteNodeManager.addRemoteMasterNode(remoteNode);
 
         // 启动线程监听 id 比当前节点id 大的master节点的连接请求
         masterNetworkManager.waitGreaterIdMasterNodeConnect();
@@ -55,5 +56,7 @@ public class MasterNode extends Node{
             MasterRole masterRole = controllerCandidate.voteForControllerElection();
 
         }
+        // 监听slave节点发起的请求
+        masterNetworkManager.waitSlaveNodeConnect();
     }
 }

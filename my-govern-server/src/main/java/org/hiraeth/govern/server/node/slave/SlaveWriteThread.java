@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.node.master;
+package org.hiraeth.govern.server.node.slave;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.node.NodeStatusManager;
@@ -12,10 +12,10 @@ import java.util.concurrent.LinkedBlockingQueue;
 /**
  * @author: lynch
  * @description:
- * @date: 2023/11/27 22:07
+ * @date: 2023/11/29 12:01
  */
 @Slf4j
-public class MasterNetworkWriteThread extends Thread{
+public class SlaveWriteThread extends Thread{
     /**
      * master节点之间的网络连接
      */
@@ -26,7 +26,7 @@ public class MasterNetworkWriteThread extends Thread{
      */
     private LinkedBlockingQueue<ByteBuffer> sendQueue = new LinkedBlockingQueue<>();
 
-    public MasterNetworkWriteThread(Socket socket, LinkedBlockingQueue<ByteBuffer> sendQueue){
+    public SlaveWriteThread(Socket socket, LinkedBlockingQueue<ByteBuffer> sendQueue){
         this.socket = socket;
         this.sendQueue = sendQueue;
         try {

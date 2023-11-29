@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.node.master.entity;
+package org.hiraeth.govern.server.node.entity;
 
 import lombok.Getter;
 
@@ -17,7 +17,13 @@ public enum RequestType {
     /**
      * 发起投票
      */
-    Vote(2);
+    Vote(2),
+
+    /**
+     * leader已选举完成
+     */
+    ElectionComplete(3),
+    ElectionCompleteAck(4);
     RequestType(int value){
         this.value = value;
     }

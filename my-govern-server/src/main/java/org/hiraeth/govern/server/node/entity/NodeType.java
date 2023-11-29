@@ -1,4 +1,4 @@
-package org.hiraeth.govern.common.constant;
+package org.hiraeth.govern.server.node.entity;
 
 import org.hiraeth.govern.common.util.StringUtil;
 

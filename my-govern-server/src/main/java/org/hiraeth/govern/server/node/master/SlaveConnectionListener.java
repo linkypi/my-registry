@@ -15,10 +15,10 @@ import java.net.Socket;
 /**
  * @author: lynch
  * @description:
- * @date: 2023/11/28 22:27
+ * @date: 2023/11/29 10:37
  */
 @Slf4j
-public class MasterConnectionListener extends Thread{
+public class SlaveConnectionListener extends Thread{
 
     /**
      * 网络连接
@@ -29,7 +29,7 @@ public class MasterConnectionListener extends Thread{
     private static final int DEFAULT_RETRIES = 3;
     private int retries = 0;
 
-    public MasterConnectionListener(MasterNetworkManager masterNetworkManager) {
+    public SlaveConnectionListener(MasterNetworkManager masterNetworkManager) {
         this.masterNetworkManager = masterNetworkManager;
     }
 
@@ -40,13 +40,13 @@ public class MasterConnectionListener extends Thread{
         while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING && retries <= DEFAULT_RETRIES) {
             try {
                 NodeAddress currentNodeAddress = Configuration.getInstance().getCurrentNodeAddress();
-                InetSocketAddress endpoint = new InetSocketAddress(currentNodeAddress.getHost(), currentNodeAddress.getMasterPort());
+                InetSocketAddress endpoint = new InetSocketAddress(currentNodeAddress.getHost(), currentNodeAddress.getSlavaPort());
 
                 serverSocket = new ServerSocket();
                 serverSocket.setReuseAddress(true);
                 serverSocket.bind(endpoint);
 
-                log.info("master binding {}:{}.", currentNodeAddress.getHost(), currentNodeAddress.getMasterPort());
+                log.info("slave binding {}:{}.", currentNodeAddress.getHost(), currentNodeAddress.getSlavaPort());
 
                 // 跟发起连接请求的master建立网络连接
                 while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING){
@@ -56,42 +56,38 @@ public class MasterConnectionListener extends Thread{
                     socket.setSoTimeout(0); // 读取数据超时时间为0 ,即无数据时阻塞
                     retries = 0;
 
-                    RemoteNode remoteNode = masterNetworkManager.readRemoteNodeInfo(socket);
-                    if(remoteNode == null){
+                    RemoteNode remoteMasterNode = masterNetworkManager.readRemoteNodeInfo(socket);
+                    if(remoteMasterNode == null){
                         fatalError = true;
                         break;
                     }
 
-                    int remoteNodeId = remoteNode.getNodeId();
+                    int remoteNodeId = remoteMasterNode.getNodeId();
 
-                    masterNetworkManager.addRemoteMasterNode(remoteNode);
+                    // 维护远程slave节点信息
+                    masterNetworkManager.addRemoteSlaveNode(remoteMasterNode);
 
                     // 维护建立的连接
                     masterNetworkManager.addRemoteNodeSocket(remoteNodeId, socket);
 
-                    masterNetworkManager.startMasterIOThreads(remoteNodeId, socket);
+                    masterNetworkManager.startSlaveIOThreads(remoteNodeId, socket);
 
-                    // 发送当前节点信息给当前连接节点
-                    if(!masterNetworkManager.sendCurrentNodeInfo(socket)){
-                        fatalError = true;
-                        break;
-                    }
 
-                    log.info("established connection with master node : {}, remote node id: {}, io threads started.",
+                    log.info("established connection with slave node : {}, remote node id: {}, io threads started.",
                             socket.getRemoteSocketAddress(), remoteNodeId);
                 }
             } catch (IOException e) {
-                log.error("listening for other master node's connection error.", e);
+                log.error("listening for other slave node's connection error.", e);
                 retries++;
 
                 if(retries <= DEFAULT_RETRIES){
-                    log.error("this is "+ retries +" times retry to listen other master node's connection.");
+                    log.error("this is "+ retries +" times retry to listen other slave node's connection.");
                 }
             }finally {
                 try {
                     serverSocket.close();
                 } catch (IOException ex) {
-                    log.error("closing socket server failed when listening other master node's connection.", ex);
+                    log.error("closing socket server failed when listening other slave node's connection.", ex);
                 }
             }
             if(!fatalError){
@@ -100,7 +96,7 @@ public class MasterConnectionListener extends Thread{
         }
 
         NodeStatusManager.setNodeStatus(NodeStatus.FATAL);
-        log.error("failed to listen other master node's connection, although retried {} times, going to shutdown.", DEFAULT_RETRIES);
+        log.error("failed to listen other slave node's connection, although retried {} times, going to shutdown.", DEFAULT_RETRIES);
     }
 
 }

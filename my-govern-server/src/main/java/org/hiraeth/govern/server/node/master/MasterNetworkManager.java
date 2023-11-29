@@ -3,14 +3,15 @@ package org.hiraeth.govern.server.node.master;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.util.CollectionUtil;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.master.entity.NodeAddress;
-import org.hiraeth.govern.server.node.master.entity.NodeStatus;
+import org.hiraeth.govern.server.node.NetworkManager;
+import org.hiraeth.govern.server.node.entity.NodeAddress;
+import org.hiraeth.govern.server.node.entity.NodeStatus;
 import org.hiraeth.govern.server.node.NodeStatusManager;
-import org.hiraeth.govern.server.node.master.entity.RemoteMasterNode;
+import org.hiraeth.govern.server.node.entity.RemoteNode;
+import org.hiraeth.govern.server.node.entity.RequestType;
 
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -31,7 +32,7 @@ import java.util.stream.Collectors;
  * @date: 2023/11/27 20:05
  */
 @Slf4j
-public class MasterNetworkManager {
+public class MasterNetworkManager extends NetworkManager {
 
     private static final int CONNECT_TIMEOUT = 5000;
     private static final long RETRY_CONNECT_INTERVAL = 1 * 30 * 1000L;
@@ -53,15 +54,17 @@ public class MasterNetworkManager {
     /**
      * 接收队列
      */
-    private BlockingQueue<ByteBuffer> receiveQueue = new LinkedBlockingQueue<>();
+    private Map<Integer, BlockingQueue<ByteBuffer>> masterReceiveQueues = new ConcurrentHashMap<>();
+    // nodeId -> requestType -> response buffer
+    private Map<Integer, Map<Integer, BlockingQueue<ByteBuffer>>> slaveReceiveQueues = new ConcurrentHashMap<>();
 
     /**
      * 远程master节点管理组件
      */
-    private RemoteMasterNodeManager remoteMasterNodeManager;
+    private RemoteNodeManager remoteNodeManager;
 
-    public MasterNetworkManager(RemoteMasterNodeManager remoteMasterNodeManager) {
-        this.remoteMasterNodeManager = remoteMasterNodeManager;
+    public MasterNetworkManager(RemoteNodeManager remoteNodeManager) {
+        this.remoteNodeManager = remoteNodeManager;
         new RetryConnectMasterNodeThread().start();
     }
 
@@ -88,6 +91,13 @@ public class MasterNetworkManager {
      */
     public void waitGreaterIdMasterNodeConnect() {
         new MasterConnectionListener(this).start();
+    }
+
+    /**
+     * 监听slave节点发起的请求
+     */
+    public void waitSlaveNodeConnect() {
+        new SlaveConnectionListener(this).start();
     }
 
     /**
@@ -137,17 +147,34 @@ public class MasterNetworkManager {
         return true;
     }
 
-    public ByteBuffer takeMessage(){
+    public ByteBuffer takeResponseMessage(RequestType requestType){
         try {
-            return receiveQueue.take();
+            return masterReceiveQueues.get(requestType.getValue()).take();
         }catch (Exception ex){
-            log.error("take message from receive queue failed.", ex);
+            log.error("take master message from receive queue failed.", ex);
+            return null;
+        }
+    }
+
+    public int countResponseMessage(RequestType requestType){
+        BlockingQueue<ByteBuffer> queue = masterReceiveQueues.get(requestType.getValue());
+        if(queue == null){
+            return 0;
+        }
+        return queue.size();
+    }
+
+    public ByteBuffer takeSlaveMessage(int nodeId, RequestType requestType){
+        try {
+            return slaveReceiveQueues.get(nodeId).get(requestType.getValue()).take();
+        }catch (Exception ex){
+            log.error("take slave message from receive queue failed.", ex);
             return null;
         }
     }
 
     public void addRemoteNodeSocket(int remoteNodeId, Socket socket) {
-        log.info("add remote master node socket, remote node id: {}, address: {}", remoteNodeId, socket.getRemoteSocketAddress());
+        log.info("add remote node socket, remote node id: {}, address: {}", remoteNodeId, socket.getRemoteSocketAddress());
         this.remoteMasterNodeSockets.put(remoteNodeId, socket);
     }
 
@@ -172,13 +199,13 @@ public class MasterNetworkManager {
                     break;
                 }
 
-                RemoteMasterNode remoteMasterNode = readRemoteNodeInfo(socket);
-                if(remoteMasterNode == null){
+                RemoteNode remoteNode = readRemoteNodeInfo(socket);
+                if(remoteNode == null){
                     fatalError = true;
                     break;
                 }
 
-                addRemoteMasterNode(remoteMasterNode);
+                addRemoteMasterNode(remoteNode);
 
                 // 维护当前连接
                 addRemoteNodeSocket(remoteNodeAddress.getNodeId(), socket);
@@ -211,68 +238,36 @@ public class MasterNetworkManager {
         return false;
     }
 
-    /**
-     * 向master机器发送自身 nodeId
-     * @param socket
-     * @return
-     */
-    public boolean sendCurrentNodeInfo(Socket socket) {
-        Configuration configuration = Configuration.getInstance();
-        int nodeId = configuration.getNodeId();
-        boolean isControllerCandidate = configuration.isControllerCandidate();
-
-        RemoteMasterNode remoteMasterNode = new RemoteMasterNode(nodeId, isControllerCandidate);
-        ByteBuffer buffer = remoteMasterNode.toBuffer();
-
-        DataOutputStream outputStream = null;
-        try {
-            outputStream = new DataOutputStream(socket.getOutputStream());
-            outputStream.writeInt(buffer.array().length);
-            outputStream.write(buffer.array());
-            outputStream.flush();
-        }catch (IOException ex){
-            log.error("send self node info to other master node failed.", ex);
-            try {
-                socket.close();
-            }catch (IOException e){
-                log.error("close socket failed when sending self node info to other master node.", e);
-            }
-            return false;
-        }catch (Exception ex){
-            log.error("send self node info to other master node failed.", ex);
-        }
-        return true;
-    }
-
-    public RemoteMasterNode readRemoteNodeInfo(Socket socket) {
-        try {
-            DataInputStream inputStream = new DataInputStream(socket.getInputStream());
-
-            int length = inputStream.readInt();
-            byte[] bytes = new byte[length];
-            inputStream.readFully(bytes);
-            return RemoteMasterNode.parseFrom(ByteBuffer.wrap(bytes));
-        } catch (IOException e) {
-            log.error("reading remote node id failed", e);
-
-            try {
-                socket.close();
-            } catch (IOException ex) {
-                log.error("closing socket failed when reading remote node id failed......", ex);
-            }
-        }
-        return null;
-    }
-
     public void startMasterIOThreads(int remoteNodeId, Socket socket) {
 
-        LinkedBlockingQueue<ByteBuffer> queue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<ByteBuffer> sendQueue = new LinkedBlockingQueue<>();
         // 初始化发送请求队列
-        sendQueues.put(remoteNodeId, queue);
+        sendQueues.put(remoteNodeId, sendQueue);
 
-        new MasterNetworkWriteThread(socket, queue).start();
-        new MasterNetworkReadThread(socket, receiveQueue).start();
+        for (RequestType requestType : RequestType.values()){
+            masterReceiveQueues.put(requestType.getValue(), new LinkedBlockingQueue<>());
+        }
 
+        new MasterWriteThread(socket, sendQueue).start();
+        new MasterReadThread(socket, masterReceiveQueues).start();
+    }
+
+    public void startSlaveIOThreads(int remoteNodeId, Socket socket) {
+
+        LinkedBlockingQueue<ByteBuffer> sendQueue = new LinkedBlockingQueue<>();
+        // 初始化发送请求队列
+        sendQueues.put(remoteNodeId, sendQueue);
+
+        // 请求类型 -> 响应
+        Map<Integer, BlockingQueue<ByteBuffer>> slaveReceiveQueue = new ConcurrentHashMap<>();
+        for (RequestType requestType : RequestType.values()){
+            slaveReceiveQueue.put(requestType.getValue(), new LinkedBlockingQueue<>());
+        }
+        // 初始化接收队列
+        slaveReceiveQueues.put(remoteNodeId, slaveReceiveQueue);
+
+        new MasterWriteThread(socket, sendQueue).start();
+        new MasterReadThread(socket, slaveReceiveQueue).start();
     }
 
     class RetryConnectMasterNodeThread extends Thread {
@@ -304,7 +299,11 @@ public class MasterNetworkManager {
         }
     }
 
-    public void addRemoteMasterNode(RemoteMasterNode remoteMasterNode) {
-        remoteMasterNodeManager.addRemoteMasterNode(remoteMasterNode);
+    public void addRemoteMasterNode(RemoteNode remoteNode) {
+        remoteNodeManager.addRemoteMasterNode(remoteNode);
+    }
+
+    public void addRemoteSlaveNode(RemoteNode remoteNode) {
+        remoteNodeManager.addRemoteSlaveNode(remoteNode);
     }
 }
