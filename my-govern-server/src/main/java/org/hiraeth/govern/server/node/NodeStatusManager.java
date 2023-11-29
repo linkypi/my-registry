@@ -2,6 +2,7 @@ package org.hiraeth.govern.server.node;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.server.node.master.entity.NodeStatus;
 
 /**
  * @author: lynch

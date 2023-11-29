@@ -1,13 +1,19 @@
-package org.hiraeth.govern.server.node.master;
+package org.hiraeth.govern.server.node.master.node;
 
+import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.MasterRole;
+import org.hiraeth.govern.server.node.master.entity.MasterRole;
+import org.hiraeth.govern.server.node.master.ControllerCandidate;
+import org.hiraeth.govern.server.node.master.MasterNetworkManager;
+import org.hiraeth.govern.server.node.master.RemoteMasterNodeManager;
+import org.hiraeth.govern.server.node.master.entity.RemoteMasterNode;
 
 /**
  * @author: lynch
  * @description:
  * @date: 2023/11/27 17:27
  */
+@Slf4j
 public class MasterNode extends Node{
 
     private MasterNetworkManager masterNetworkManager;
@@ -29,6 +35,11 @@ public class MasterNode extends Node{
 
     @Override
     public void start() {
+
+        Configuration configuration = Configuration.getInstance();
+        RemoteMasterNode remoteMasterNode = new RemoteMasterNode(configuration.getNodeId(), configuration.isControllerCandidate());
+        remoteMasterNodeManager.addRemoteMasterNode(remoteMasterNode);
+
         // 启动线程监听 id 比当前节点id 大的master节点的连接请求
         masterNetworkManager.waitGreaterIdMasterNodeConnect();
         // 主动连接 id 比当前节点id 较小的master节点
@@ -39,7 +50,6 @@ public class MasterNode extends Node{
         masterNetworkManager.waitAllTheOtherNodesConnected();
 
         // 投票选举 Controller
-        Configuration configuration = Configuration.getInstance();
         boolean isControllerCandidate = configuration.isControllerCandidate();
         if(isControllerCandidate) {
             MasterRole masterRole = controllerCandidate.voteForControllerElection();

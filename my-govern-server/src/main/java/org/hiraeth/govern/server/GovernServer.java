@@ -5,14 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.NodeType;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.config.ConfigurationException;
-import org.hiraeth.govern.server.node.NodeStatus;
+import org.hiraeth.govern.server.node.master.entity.NodeStatus;
 import org.hiraeth.govern.server.node.NodeStatusManager;
-import org.hiraeth.govern.server.node.master.MasterNode;
-import org.hiraeth.govern.server.node.master.Node;
-import org.hiraeth.govern.server.node.master.SlaveNode;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.ConfigurableApplicationContext;
+import org.hiraeth.govern.server.node.master.node.MasterNode;
+import org.hiraeth.govern.server.node.master.node.SlaveNode;
 
 /**
  * 服务治理平台 Server 端
@@ -44,7 +40,6 @@ public class GovernServer {
             }else{
                 new SlaveNode().start();
             }
-            NodeStatusManager.setNodeStatus(NodeStatus.RUNNING);
 
         } catch (ConfigurationException ex) {
             log.error("configuration exception", ex);

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package govern;
+option java_package = "org.hiraeth.govern.server.node.master.request";
+option java_outer_classname = "VoteRequestProto";
+
+message VoteRequest{
+    // 投票节点id
+    int32 vote_node_id = 1;
+    // 投票给哪个controller节点
+    int32 vote_for_node_id = 2;
+    // 投票轮次
+    int32 vote_round = 3;
+}

@@ -1,8 +1,7 @@
-package org.hiraeth.govern.server.node.master;
+package org.hiraeth.govern.server.node.master.node;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.hiraeth.govern.server.node.NodeStatus;
 
 /**
  * 实例节点

@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
 import org.hiraeth.govern.common.constant.NodeType;
 import org.hiraeth.govern.common.util.StringUtil;
-import org.hiraeth.govern.server.node.NodeAddress;
+import org.hiraeth.govern.server.node.master.entity.NodeAddress;
 
 import java.io.File;
 import java.io.FileInputStream;

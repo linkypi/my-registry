@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.node.master;
+package org.hiraeth.govern.server.node.master.node;
 
 /**
  * @author: lynch

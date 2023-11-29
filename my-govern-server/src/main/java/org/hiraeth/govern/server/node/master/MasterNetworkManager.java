@@ -3,10 +3,9 @@ package org.hiraeth.govern.server.node.master;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.util.CollectionUtil;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.NodeAddress;
-import org.hiraeth.govern.server.node.NodeStatus;
+import org.hiraeth.govern.server.node.master.entity.NodeAddress;
+import org.hiraeth.govern.server.node.master.entity.NodeStatus;
 import org.hiraeth.govern.server.node.NodeStatusManager;
-import org.hiraeth.govern.server.node.master.Request.MasterNodeMetaInfoRequestProto.*;
 import org.hiraeth.govern.server.node.master.entity.RemoteMasterNode;
 
 import java.io.*;
@@ -35,10 +34,10 @@ import java.util.stream.Collectors;
 public class MasterNetworkManager {
 
     private static final int CONNECT_TIMEOUT = 5000;
-    private static final long RETRY_CONNECT_INTERVAL = 1 * 60 * 1000L;
+    private static final long RETRY_CONNECT_INTERVAL = 1 * 30 * 1000L;
     // 检查跟其他所有节点的连接状态的时间间隔
     private static final long CHECK_ALL_OTHER_NODES_CONNECT_INTERVAL = 5 * 1000L;
-    private static final int DEFAULT_RETRIES = 3;
+    private static final int DEFAULT_RETRIES = 5;
     /**
      * 等待重试发起连接的Master节点集合
      */
@@ -88,7 +87,7 @@ public class MasterNetworkManager {
      * 等待 node.id 比当前节点 node.id 大的master节点连接
      */
     public void waitGreaterIdMasterNodeConnect() {
-        new MasterConnectionListener().start();
+        new MasterConnectionListener(this).start();
     }
 
     /**
@@ -138,7 +137,7 @@ public class MasterNetworkManager {
         return true;
     }
 
-    public ByteBuffer taskMessage(){
+    public ByteBuffer takeMessage(){
         try {
             return receiveQueue.take();
         }catch (Exception ex){
@@ -147,7 +146,7 @@ public class MasterNetworkManager {
         }
     }
 
-    private void addRemoteNodeSocket(int remoteNodeId, Socket socket) {
+    public void addRemoteNodeSocket(int remoteNodeId, Socket socket) {
         log.info("add remote master node socket, remote node id: {}, address: {}", remoteNodeId, socket.getRemoteSocketAddress());
         this.remoteMasterNodeSockets.put(remoteNodeId, socket);
     }
@@ -167,17 +166,25 @@ public class MasterNetworkManager {
                 socket.setReuseAddress(true);
                 socket.connect(endpoint, CONNECT_TIMEOUT);
 
-                // 发送自己的id给对方
-                if(!sendMyNodeInfo(socket)){
+                // 将当前节点信息发送给其他master节点
+                if(!sendCurrentNodeInfo(socket)){
                     fatalError = true;
                     break;
                 }
+
+                RemoteMasterNode remoteMasterNode = readRemoteNodeInfo(socket);
+                if(remoteMasterNode == null){
+                    fatalError = true;
+                    break;
+                }
+
+                addRemoteMasterNode(remoteMasterNode);
 
                 // 维护当前连接
                 addRemoteNodeSocket(remoteNodeAddress.getNodeId(), socket);
 
                 // 为网络连接启动读写IO线程
-                startIOThreads(remoteNodeAddress.getNodeId(), socket);
+                startMasterIOThreads(remoteNodeAddress.getNodeId(), socket);
                 return true;
             } catch (IOException ex) {
 
@@ -188,7 +195,6 @@ public class MasterNetworkManager {
                             retries, remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
                 }
             }
-            return false;
         }
 
         // 系统异常崩溃
@@ -210,21 +216,19 @@ public class MasterNetworkManager {
      * @param socket
      * @return
      */
-    private boolean sendMyNodeInfo(Socket socket) {
+    public boolean sendCurrentNodeInfo(Socket socket) {
         Configuration configuration = Configuration.getInstance();
         int nodeId = configuration.getNodeId();
         boolean isControllerCandidate = configuration.isControllerCandidate();
-        MasterNodeMetaInfoRequest.Builder builder = MasterNodeMetaInfoRequest.newBuilder();
-        builder.setNodeId(nodeId);
-        builder.setIsControllerCandidate(isControllerCandidate);
-        byte[] bytes = builder.build().toByteArray();
+
+        RemoteMasterNode remoteMasterNode = new RemoteMasterNode(nodeId, isControllerCandidate);
+        ByteBuffer buffer = remoteMasterNode.toBuffer();
 
         DataOutputStream outputStream = null;
         try {
             outputStream = new DataOutputStream(socket.getOutputStream());
-            outputStream.writeByte(RequestType.NodeInfo.getValue());
-            outputStream.writeInt(bytes.length);
-            outputStream.write(bytes);
+            outputStream.writeInt(buffer.array().length);
+            outputStream.write(buffer.array());
             outputStream.flush();
         }catch (IOException ex){
             log.error("send self node info to other master node failed.", ex);
@@ -234,21 +238,20 @@ public class MasterNetworkManager {
                 log.error("close socket failed when sending self node info to other master node.", e);
             }
             return false;
+        }catch (Exception ex){
+            log.error("send self node info to other master node failed.", ex);
         }
         return true;
     }
 
-    private MasterNodeMetaInfoRequest readRemoteNodeInfo(Socket socket) {
+    public RemoteMasterNode readRemoteNodeInfo(Socket socket) {
         try {
             DataInputStream inputStream = new DataInputStream(socket.getInputStream());
-            byte requestType = inputStream.readByte();
-            if (RequestType.NodeInfo.getValue() == requestType) {
-                int length = inputStream.readInt();
-                byte[] bytes = new byte[length];
-                inputStream.readFully(bytes);
-                return MasterNodeMetaInfoRequest.parseFrom(bytes);
-            }
-            return null;
+
+            int length = inputStream.readInt();
+            byte[] bytes = new byte[length];
+            inputStream.readFully(bytes);
+            return RemoteMasterNode.parseFrom(ByteBuffer.wrap(bytes));
         } catch (IOException e) {
             log.error("reading remote node id failed", e);
 
@@ -261,7 +264,7 @@ public class MasterNetworkManager {
         return null;
     }
 
-    private void startIOThreads(int remoteNodeId, Socket socket) {
+    public void startMasterIOThreads(int remoteNodeId, Socket socket) {
 
         LinkedBlockingQueue<ByteBuffer> queue = new LinkedBlockingQueue<>();
         // 初始化发送请求队列
@@ -301,90 +304,7 @@ public class MasterNetworkManager {
         }
     }
 
-    class MasterConnectionListener extends Thread{
-
-        /**
-         * 网络连接
-         */
-        private ServerSocket serverSocket;
-
-        private static final int DEFAULT_RETRIES = 3;
-        private int retries = 0;
-
-        @Override
-        public void run() {
-            // 是否遇到了异常崩溃
-            boolean fatalError = false;
-            while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING && retries <= DEFAULT_RETRIES) {
-                try {
-                    NodeAddress currentNodeAddress = Configuration.getInstance().getCurrentNodeAddress();
-                    InetSocketAddress endpoint = new InetSocketAddress(currentNodeAddress.getHost(), currentNodeAddress.getMasterPort());
-
-                    serverSocket = new ServerSocket();
-                    serverSocket.setReuseAddress(true);
-                    serverSocket.bind(endpoint);
-
-                    log.info("master binding {}:{}.", currentNodeAddress.getHost(), currentNodeAddress.getMasterPort());
-
-                    // 跟发起连接请求的master建立网络连接
-                    while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING){
-                        // id 比自身大的master节点会发送连接请求到此处
-                        Socket socket = serverSocket.accept();
-                        socket.setTcpNoDelay(true);
-                        socket.setSoTimeout(0); // 读取数据超时时间为0 ,即无数据时阻塞
-                        retries = 0;
-
-                        MasterNodeMetaInfoRequest remoteNodeInfo = readRemoteNodeInfo(socket);
-                        if(remoteNodeInfo == null){
-                            fatalError = true;
-                            break;
-                        }
-
-                        int remoteNodeId = remoteNodeInfo.getNodeId();
-
-                        addRemoteMasterNode(remoteNodeInfo);
-
-                        // 维护建立的连接
-                        addRemoteNodeSocket(remoteNodeId, socket);
-
-                        startIOThreads(remoteNodeId, socket);
-
-                        log.info("established connection with master node : {}, remote node id: {}, io threads started.",
-                               socket.getRemoteSocketAddress(), remoteNodeId);
-                    }
-                } catch (IOException e) {
-                    log.error("listening for other master node's connection error.", e);
-                    retries++;
-
-                    if(retries <= DEFAULT_RETRIES){
-                        log.error("this is "+ retries +" times retry to listen other master node's connection.");
-                    }
-                }finally {
-                    try {
-                        serverSocket.close();
-                    } catch (IOException ex) {
-                        log.error("closing socket server failed when listening other master node's connection.", ex);
-                    }
-                }
-                if(!fatalError){
-                    break;
-                }
-            }
-
-            NodeStatusManager.getInstance().setNodeStatus(NodeStatus.FATAL);
-            log.error("failed to listen other master node's connection, although retried {} times, going to shutdown.", DEFAULT_RETRIES);
-        }
-
-        public void shutdown(){
-
-        }
-    }
-
-    private void addRemoteMasterNode(MasterNodeMetaInfoRequest remoteNodeInfo) {
-        int remoteNodeId = remoteNodeInfo.getNodeId();
-        RemoteMasterNode remoteMasterNode = new RemoteMasterNode();
-        remoteMasterNode.setNodeId(remoteNodeId);
-        remoteMasterNode.setControllerCandidate(remoteNodeInfo.getIsControllerCandidate());
+    public void addRemoteMasterNode(RemoteMasterNode remoteMasterNode) {
         remoteMasterNodeManager.addRemoteMasterNode(remoteMasterNode);
     }
 }
