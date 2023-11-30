@@ -51,9 +51,9 @@ public class MasterNetworkManager extends NetworkManager {
     /**
      * 接收队列
      */
-    private Map<Integer, BlockingQueue<MessageBase>> masterReceiveQueues = new ConcurrentHashMap<>();
+    private Map<Integer, LinkedBlockingQueue<MessageBase>> masterReceiveQueues = new ConcurrentHashMap<>();
     // nodeId -> requestType -> response buffer
-    private Map<Integer, Map<Integer, BlockingQueue<MessageBase>>> slaveReceiveQueues = new ConcurrentHashMap<>();
+    private Map<Integer, Map<Integer, LinkedBlockingQueue<MessageBase>>> slaveReceiveQueues = new ConcurrentHashMap<>();
 
     /**
      * 远程master节点管理组件
@@ -256,7 +256,7 @@ public class MasterNetworkManager extends NetworkManager {
         sendQueues.put(remoteNodeId, sendQueue);
 
         // 请求类型 -> 响应
-        Map<Integer, BlockingQueue<MessageBase>> slaveReceiveQueue = new ConcurrentHashMap<>();
+        Map<Integer, LinkedBlockingQueue<MessageBase>> slaveReceiveQueue = new ConcurrentHashMap<>();
         for (MessageType messageType : MessageType.values()){
             slaveReceiveQueue.put(messageType.getValue(), new LinkedBlockingQueue<>());
         }

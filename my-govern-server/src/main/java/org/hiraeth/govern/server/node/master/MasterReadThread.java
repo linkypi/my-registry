@@ -26,9 +26,9 @@ public class MasterReadThread extends Thread{
      */
     private Socket socket;
     private DataInputStream inputStream;
-    private Map<Integer,BlockingQueue<MessageBase>> receiveQueue;
+    private Map<Integer,LinkedBlockingQueue<MessageBase>> receiveQueue;
 
-    public MasterReadThread(Socket socket, Map<Integer, BlockingQueue<MessageBase>> receiveQueue){
+    public MasterReadThread(Socket socket, Map<Integer, LinkedBlockingQueue<MessageBase>> receiveQueue){
         this.socket = socket;
         this.receiveQueue = receiveQueue;
         try {

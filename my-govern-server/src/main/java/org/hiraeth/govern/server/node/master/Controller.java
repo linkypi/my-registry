@@ -47,6 +47,7 @@ public class Controller {
 
         notifySlotsAllocation();
 
+        log.debug("persist slots success, notified other candidates, waiting for ack ...");
         waitForSlotAllocateResultAck();
     }
 
@@ -98,7 +99,7 @@ public class Controller {
         int index = 0;
         slotsAllocation = new ConcurrentHashMap<>(totalMasters);
         for (RemoteNode remoteNode : otherRemoteMasterNodes) {
-            slotsAllocation.put(remoteNode.getNodeId(), new SlotRang(index, slotsPerNode - 1));
+            slotsAllocation.put(remoteNode.getNodeId(), new SlotRang(index, index + slotsPerNode - 1));
             index += slotsPerNode;
         }
         int nodeId = Configuration.getInstance().getNodeId();
