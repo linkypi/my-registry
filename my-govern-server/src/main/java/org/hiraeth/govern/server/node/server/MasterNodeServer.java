@@ -67,33 +67,41 @@ public class MasterNodeServer extends NodeServer {
             if(electionResult.getMasterRole() == MasterRole.Controller){
                 Controller controller = new Controller(remoteNodeManager, masterNetworkManager);
                 controller.allocateSlots();
+
+                // 监听slave节点发起的请求
+                masterNetworkManager.waitSlaveNodeConnect();
             }else{
                 // 接收槽位分配
                 waitForSlotAllocateResult();
             }
         }
-        // 监听slave节点发起的请求
-        masterNetworkManager.waitSlaveNodeConnect();
     }
 
     private void waitForSlotAllocateResult() {
         try {
-            MessageBase message = masterNetworkManager.takeResponseMessage(MessageType.AllocateSlots);
-            SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(message);
-            if (slotAllocateResult.getSlots() == null) {
-                log.error("allocated slots from controller is null: {}", JSON.toJSONString(slotAllocateResult));
-                NodeStatusManager.setFatal();
-                return;
+            while (NodeStatusManager.isRunning()) {
+                if (masterNetworkManager.countResponseMessage(MessageType.AllocateSlots) == 0) {
+                    Thread.sleep(500);
+                    continue;
+                }
+                MessageBase message = masterNetworkManager.takeResponseMessage(MessageType.AllocateSlots);
+                SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(message);
+                if (slotAllocateResult.getSlots() == null) {
+                    log.error("allocated slots from controller is null: {}", JSON.toJSONString(slotAllocateResult));
+                    NodeStatusManager.setFatal();
+                    continue;
+                }
+
+                Controller.persistSlotsAllocation(slotAllocateResult.getSlots());
+                NodeStatusManager.getInstance().setSlots(slotAllocateResult.getSlots());
+
+                log.debug("persist slots success.");
+                // 回复ACK
+                SlotAllocateResultAck resultAck = new SlotAllocateResultAck();
+                masterNetworkManager.sendRequest(slotAllocateResult.getFromNodeId(), resultAck.toMessage());
+                log.debug("replyed ack slot allocation");
+                break;
             }
-
-            Controller.persistSlotsAllocation(slotAllocateResult.getSlots());
-            NodeStatusManager.getInstance().setSlots(slotAllocateResult.getSlots());
-
-            log.debug("persist slots success.");
-            // 回复ACK
-            SlotAllocateResultAck resultAck = new SlotAllocateResultAck();
-            masterNetworkManager.sendRequest(slotAllocateResult.getFromNodeId(), resultAck.toMessage());
-            log.debug("replyed ack slot allocation");
         } catch (Exception ex) {
             log.error("wait for slot allocate result occur error", ex);
             NodeStatusManager.setFatal();
