@@ -18,48 +18,35 @@ import java.util.Map;
  */
 @Getter
 @Setter
-public class SlotAllocateResult {
-    private int controllerId;
-    private int epoch;
-    private long timeStamp;
-    private int fromNodeId;
+public class SlotAllocateResult extends MessageBase{
+
     private Map<Integer, SlotRang> slots;
 
     public SlotAllocateResult(Map<Integer, SlotRang> slots){
-        NodeStatusManager statusManager = NodeStatusManager.getInstance();
-        this.controllerId = statusManager.getControllerId();
+        super();
+        this.messageType = MessageType.AllocateSlots;
         this.slots = slots;
-        this.epoch = statusManager.getEpoch();
-        this.timeStamp = System.currentTimeMillis();
-        this.fromNodeId = Configuration.getInstance().getNodeId();
     }
 
-    public SlotAllocateResult(int controllerId, int epoch, long timeStamp, int fromNodeId, Map<Integer, SlotRang> slots) {
-        this.controllerId = controllerId;
-        this.slots = slots;
-        this.epoch = epoch;
-        this.timeStamp = timeStamp;
-        this.fromNodeId = fromNodeId;
-    }
-
-    public ByteBuffer toBuffer() {
+    @Override
+    protected void writePayload(ByteBuffer buffer){
         byte[] bytes = JSON.toJSONString(slots).getBytes();
-        ByteBuffer buffer = ByteBuffer.allocate(24 + bytes.length);
-        buffer.putInt(MessageType.AllocateSlots.getValue());
-        buffer.putInt(controllerId);
-        buffer.putInt(epoch);
-        buffer.putLong(System.currentTimeMillis());
-        buffer.putInt(fromNodeId);
         buffer.put(bytes);
-        return buffer;
     }
 
-    public static SlotAllocateResult parseFrom(ByteBuffer buffer) {
-        int controllerId = buffer.getInt();
-        int epoch = buffer.getInt();
-        long timeStamp = buffer.getLong();
-        int from = buffer.getInt();
-        int remind = buffer.remaining();
+    public ByteBuffer toBuffer(){
+        byte[] bytes = JSON.toJSONString(slots).getBytes();
+        return super.newBuffer(bytes.length);
+    }
+    public Message toMessage(){
+        ByteBuffer buffer = toBuffer();
+        return new Message(messageType, buffer.array());
+    }
+
+     public static SlotAllocateResult parseFrom(MessageBase messageBase){
+
+         ByteBuffer buffer = messageBase.getBuffer();
+         int remind = buffer.remaining();
         byte[] bytes = new byte[remind];
         buffer.get(bytes);
         String json = new String(bytes);
@@ -71,7 +58,14 @@ public class SlotAllocateResult {
             SlotRang slotRang = new SlotRang(jsonObject.getIntValue("start"), jsonObject.getIntValue("end"));
             slotRangMap.put(item, slotRang);
         }
-        return new SlotAllocateResult(controllerId, epoch, timeStamp, from, slotRangMap);
+        SlotAllocateResult slotAllocateResult = new SlotAllocateResult(slotRangMap);
+        slotAllocateResult.setControllerId(messageBase.getControllerId());
+        slotAllocateResult.setTimestamp(messageBase.getTimestamp());
+        slotAllocateResult.setEpoch(messageBase.getEpoch());
+        slotAllocateResult.setFromNodeId(messageBase.getFromNodeId());
+        return slotAllocateResult;
     }
+
+
 
 }

@@ -7,7 +7,6 @@ import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.NodeStatusManager;
 import org.hiraeth.govern.server.node.entity.*;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -59,9 +58,8 @@ public class Controller {
                     Thread.sleep(500);
                     continue;
                 }
-                ByteBuffer buffer = masterNetworkManager.takeResponseMessage(MessageType.AllocateSlotsAck);
-                SlotAllocateResultAck ackResult = SlotAllocateResultAck.parseFrom(buffer);
-
+                MessageBase message = masterNetworkManager.takeResponseMessage(MessageType.AllocateSlotsAck);
+                SlotAllocateResultAck ackResult = SlotAllocateResultAck.parseFrom(message);
                 confirmSet.add(ackResult.getFromNodeId());
                 if (confirmSet.size() >= remoteNodeManager.getQuorum()) {
                     log.info("all the other candidates has confirmed the slots allocation.");
@@ -78,7 +76,7 @@ public class Controller {
         try {
             SlotAllocateResult slotAllocateResult = new SlotAllocateResult(slotsAllocation);
             for (RemoteNode remoteNode : remoteNodeManager.getOtherControllerCandidates()) {
-                masterNetworkManager.sendRequest(remoteNode.getNodeId(), slotAllocateResult.toBuffer());
+                masterNetworkManager.sendRequest(remoteNode.getNodeId(), slotAllocateResult.toMessage());
             }
         } catch (Exception ex) {
             log.error("send allocation slots to other candidates occur error: {}", JSON.toJSONString(slotsAllocation), ex);

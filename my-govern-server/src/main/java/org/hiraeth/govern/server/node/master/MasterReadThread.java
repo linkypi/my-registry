@@ -2,6 +2,8 @@ package org.hiraeth.govern.server.node.master;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.node.NodeStatusManager;
+import org.hiraeth.govern.server.node.entity.Message;
+import org.hiraeth.govern.server.node.entity.MessageBase;
 import org.hiraeth.govern.server.node.entity.MessageType;
 
 import java.io.DataInputStream;
@@ -24,9 +26,9 @@ public class MasterReadThread extends Thread{
      */
     private Socket socket;
     private DataInputStream inputStream;
-    private Map<Integer,BlockingQueue<ByteBuffer>> receiveQueue;
+    private Map<Integer,BlockingQueue<MessageBase>> receiveQueue;
 
-    public MasterReadThread(Socket socket, Map<Integer, BlockingQueue<ByteBuffer>> receiveQueue){
+    public MasterReadThread(Socket socket, Map<Integer, BlockingQueue<MessageBase>> receiveQueue){
         this.socket = socket;
         this.receiveQueue = receiveQueue;
         try {
@@ -48,19 +50,20 @@ public class MasterReadThread extends Thread{
                 byte[] bytes = new byte[length];
                 inputStream.readFully(bytes, 0, length);
 
-                // 将字节数组封装成byteBuffer
+                // 将字节数组封装成 byteBuffer
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                int messageType = buffer.getInt();
+//                int messageType = buffer.getInt();
+                MessageBase messageBase = MessageBase.parseFromBuffer(buffer);
+                int msgType = messageBase.getMessageType().getValue();
 
-                if (!receiveQueue.containsKey(messageType)) {
-                    receiveQueue.put(messageType, new LinkedBlockingQueue<>());
+                if (!receiveQueue.containsKey(msgType)) {
+                    receiveQueue.put(msgType, new LinkedBlockingQueue<>());
                 }
-                receiveQueue.get(messageType).add(buffer);
+                receiveQueue.get(msgType).add(messageBase);
 
-                MessageType msgTypeEnum = MessageType.of(messageType);
-                String msgTypeStr = msgTypeEnum == null ? "-" : msgTypeEnum.name();
+                MessageType msgTypeEnum = messageBase.getMessageType();
                 log.info("get message from remote node: {}, message type: {}, message size: {} bytes",
-                        socket.getRemoteSocketAddress(), msgTypeStr, buffer.capacity());
+                        socket.getRemoteSocketAddress(), msgTypeEnum.name(), buffer.capacity());
             } catch (IOException ex) {
                 log.error("read message from remote node failed.", ex);
                 NodeStatusManager.setFatal();

@@ -2,6 +2,8 @@ package org.hiraeth.govern.server.node.master;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.node.NodeStatusManager;
+import org.hiraeth.govern.server.node.entity.Message;
+import org.hiraeth.govern.server.node.entity.MessageBase;
 import org.hiraeth.govern.server.node.entity.MessageType;
 
 import java.io.DataOutputStream;
@@ -25,9 +27,9 @@ public class MasterWriteThread extends Thread{
     /**
      * 发送消息队列
      */
-    private LinkedBlockingQueue<ByteBuffer> sendQueue;
+    private LinkedBlockingQueue<Message> sendQueue;
 
-    public MasterWriteThread(Socket socket, LinkedBlockingQueue<ByteBuffer> sendQueue){
+    public MasterWriteThread(Socket socket, LinkedBlockingQueue<Message> sendQueue){
         this.socket = socket;
         this.sendQueue = sendQueue;
         try {
@@ -44,19 +46,14 @@ public class MasterWriteThread extends Thread{
         while (NodeStatusManager.isRunning()) {
             try {
                 // 阻塞获取待发送请求
-                ByteBuffer buffer = sendQueue.take();
-//                int messageType = buffer.getInt();
-//                buffer.position(0);
-
-                outputStream.writeInt(buffer.capacity());
-                outputStream.write(buffer.array());
+                Message message = sendQueue.take();
+                byte[] buffer = message.getBuffer();
+                outputStream.writeInt(buffer.length);
+                outputStream.write(buffer);
                 outputStream.flush();
 
-                MessageType msgTypeEnum = MessageType.of(1);
-                String msgTypeStr = msgTypeEnum == null ? "-" : msgTypeEnum.name();
-
-                log.info("sending message to remote node: {}, message type: {}, message size : {} bytes.",
-                        socket.getRemoteSocketAddress(), msgTypeStr, buffer.capacity());
+                log.info("send message to remote node: {}, message type: {}, message size : {} bytes.",
+                        socket.getRemoteSocketAddress(), message.getMessageType().name(), buffer.length);
             }catch (InterruptedException ex){
                 log.error("get message from send queue failed.", ex);
                 NodeStatusManager.setFatal();

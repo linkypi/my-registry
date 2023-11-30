@@ -78,8 +78,8 @@ public class MasterNodeServer extends NodeServer {
 
     private void waitForSlotAllocateResult() {
         try {
-            ByteBuffer buffer = masterNetworkManager.takeResponseMessage(MessageType.AllocateSlots);
-            SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(buffer);
+            MessageBase message = masterNetworkManager.takeResponseMessage(MessageType.AllocateSlots);
+            SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(message);
             if (slotAllocateResult.getSlots() == null) {
                 log.error("allocated slots from controller is null: {}", JSON.toJSONString(slotAllocateResult));
                 NodeStatusManager.setFatal();
@@ -92,7 +92,7 @@ public class MasterNodeServer extends NodeServer {
             log.debug("persist slots success.");
             // 回复ACK
             SlotAllocateResultAck resultAck = new SlotAllocateResultAck();
-            masterNetworkManager.sendRequest(slotAllocateResult.getFromNodeId(), resultAck.toBuffer());
+            masterNetworkManager.sendRequest(slotAllocateResult.getFromNodeId(), resultAck.toMessage());
             log.debug("replyed ack slot allocation");
         } catch (Exception ex) {
             log.error("wait for slot allocate result occur error", ex);

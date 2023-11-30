@@ -4,11 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.util.CollectionUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.NetworkManager;
-import org.hiraeth.govern.server.node.entity.NodeAddress;
-import org.hiraeth.govern.server.node.entity.NodeStatus;
+import org.hiraeth.govern.server.node.entity.*;
 import org.hiraeth.govern.server.node.NodeStatusManager;
-import org.hiraeth.govern.server.node.entity.RemoteNode;
-import org.hiraeth.govern.server.node.entity.MessageType;
 
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -50,13 +47,13 @@ public class MasterNetworkManager extends NetworkManager {
     /**
      * 发送队列
      */
-    private Map<Integer, LinkedBlockingQueue<ByteBuffer>> sendQueues = new ConcurrentHashMap<>();
+    private Map<Integer, LinkedBlockingQueue<Message>> sendQueues = new ConcurrentHashMap<>();
     /**
      * 接收队列
      */
-    private Map<Integer, BlockingQueue<ByteBuffer>> masterReceiveQueues = new ConcurrentHashMap<>();
+    private Map<Integer, BlockingQueue<MessageBase>> masterReceiveQueues = new ConcurrentHashMap<>();
     // nodeId -> requestType -> response buffer
-    private Map<Integer, Map<Integer, BlockingQueue<ByteBuffer>>> slaveReceiveQueues = new ConcurrentHashMap<>();
+    private Map<Integer, Map<Integer, BlockingQueue<MessageBase>>> slaveReceiveQueues = new ConcurrentHashMap<>();
 
     /**
      * 远程master节点管理组件
@@ -136,9 +133,9 @@ public class MasterNetworkManager extends NetworkManager {
      * @param message
      * @return
      */
-    public boolean sendRequest(Integer remoteNodeId, ByteBuffer message) {
+    public boolean sendRequest(Integer remoteNodeId, Message message) {
         try {
-            LinkedBlockingQueue<ByteBuffer> sendQueue = sendQueues.get(remoteNodeId);
+            LinkedBlockingQueue<Message> sendQueue = sendQueues.get(remoteNodeId);
             sendQueue.put(message);
         } catch (Exception ex) {
             log.error("put request to send queue failed, remote node id: {}", remoteNodeId, ex);
@@ -147,7 +144,7 @@ public class MasterNetworkManager extends NetworkManager {
         return true;
     }
 
-    public ByteBuffer takeResponseMessage(MessageType messageType){
+    public MessageBase takeResponseMessage(MessageType messageType){
         try {
             return masterReceiveQueues.get(messageType.getValue()).take();
         }catch (Exception ex){
@@ -157,14 +154,14 @@ public class MasterNetworkManager extends NetworkManager {
     }
 
     public int countResponseMessage(MessageType messageType){
-        BlockingQueue<ByteBuffer> queue = masterReceiveQueues.get(messageType.getValue());
+        BlockingQueue<MessageBase> queue = masterReceiveQueues.get(messageType.getValue());
         if(queue == null){
             return 0;
         }
         return queue.size();
     }
 
-    public ByteBuffer takeSlaveMessage(int nodeId, MessageType messageType){
+    public MessageBase takeSlaveMessage(int nodeId, MessageType messageType){
         try {
             return slaveReceiveQueues.get(nodeId).get(messageType.getValue()).take();
         }catch (Exception ex){
@@ -240,7 +237,7 @@ public class MasterNetworkManager extends NetworkManager {
 
     public void startMasterIOThreads(int remoteNodeId, Socket socket) {
 
-        LinkedBlockingQueue<ByteBuffer> sendQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<Message> sendQueue = new LinkedBlockingQueue<>();
         // 初始化发送请求队列
         sendQueues.put(remoteNodeId, sendQueue);
 
@@ -254,12 +251,12 @@ public class MasterNetworkManager extends NetworkManager {
 
     public void startSlaveIOThreads(int remoteNodeId, Socket socket) {
 
-        LinkedBlockingQueue<ByteBuffer> sendQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<Message> sendQueue = new LinkedBlockingQueue<>();
         // 初始化发送请求队列
         sendQueues.put(remoteNodeId, sendQueue);
 
         // 请求类型 -> 响应
-        Map<Integer, BlockingQueue<ByteBuffer>> slaveReceiveQueue = new ConcurrentHashMap<>();
+        Map<Integer, BlockingQueue<MessageBase>> slaveReceiveQueue = new ConcurrentHashMap<>();
         for (MessageType messageType : MessageType.values()){
             slaveReceiveQueue.put(messageType.getValue(), new LinkedBlockingQueue<>());
         }

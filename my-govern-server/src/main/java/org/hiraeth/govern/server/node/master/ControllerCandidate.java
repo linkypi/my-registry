@@ -65,7 +65,7 @@ public class ControllerCandidate {
 
         Configuration configuration = Configuration.getInstance();
         int currentNodeId = configuration.getNodeId();
-        this.currentVote = new Vote(1, currentNodeId, currentNodeId);
+        this.currentVote = new Vote(1, currentNodeId);
 
         startElection();
 
@@ -96,7 +96,7 @@ public class ControllerCandidate {
         List<RemoteNode> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
         ElectionResult electionResult = ElectionResult.newCandidateResult(controllerId, voteRound);
         for (RemoteNode remoteNode : otherControllerCandidates) {
-            masterNetworkManager.sendRequest(remoteNode.getNodeId(), electionResult.toBuffer());
+            masterNetworkManager.sendRequest(remoteNode.getNodeId(), electionResult.toMessage());
         }
     }
 
@@ -133,7 +133,7 @@ public class ControllerCandidate {
         for (RemoteNode remoteNode : otherControllerCandidates) {
             currentVote.setFromNodeId(currentNodeId);
             Integer remoteNodeId = remoteNode.getNodeId();
-            masterNetworkManager.sendRequest(remoteNodeId, currentVote.toBuffer());
+            masterNetworkManager.sendRequest(remoteNodeId, currentVote.toMessage());
             log.info("send vote to remote node: {}, vote info: {}", remoteNodeId, JSON.toJSONString(currentVote));
         }
     }
@@ -150,8 +150,9 @@ public class ControllerCandidate {
         while (NodeStatusManager.isRunning() && ElectionStage.getStatus() == ElectionStage.ELStage.ELECTING) {
             try {
                 if (masterNetworkManager.countResponseMessage(MessageType.Vote) > 0) {
-                    ByteBuffer buffer = masterNetworkManager.takeResponseMessage(MessageType.Vote);
-                    Integer leaderId = handleVoteResponse(buffer);
+                    MessageBase messageBase = (MessageBase)masterNetworkManager.takeResponseMessage(MessageType.Vote);
+                    Vote vote = Vote.parseFrom(messageBase);
+                    Integer leaderId = handleVoteResponse(vote);
                     if (leaderId != null) {
                         electionResult = ElectionResult.newCandidateResult(leaderId, voteRound);
                         return electionResult;
@@ -189,9 +190,8 @@ public class ControllerCandidate {
         }
 
         private boolean handleElectionResult() {
-            ByteBuffer buffer = masterNetworkManager.takeResponseMessage(MessageType.ElectionComplete);
-            ElectionResult remoteEleResult = ElectionResult.parseFrom(buffer);
-
+            MessageBase messageBase = masterNetworkManager.takeResponseMessage(MessageType.ElectionComplete);
+            ElectionResult remoteEleResult = ElectionResult.parseFrom(messageBase);
             log.info("election result notification: {}. ", JSON.toJSONString(remoteEleResult));
 
             int currentNoteId = Configuration.getInstance().getNodeId();
@@ -228,8 +228,8 @@ public class ControllerCandidate {
         }
 
         private boolean ackElectionResult() {
-            ByteBuffer buffer = masterNetworkManager.takeResponseMessage(MessageType.ElectionCompleteAck);
-            ElectionResultAck remoteResultAck = ElectionResultAck.parseFrom(buffer);
+            MessageBase messageBase = masterNetworkManager.takeResponseMessage(MessageType.ElectionCompleteAck);
+            ElectionResultAck remoteResultAck = ElectionResultAck.parseFrom(messageBase);
             if (ElectionResultAck.AckResult.Accepted.getValue() == remoteResultAck.getResult()) {
                 confirmList.add(remoteResultAck.getFromNodeId());
             }
@@ -253,7 +253,7 @@ public class ControllerCandidate {
                 int epoch = remoteResultAck.getEpoch();
                 ElectionResult result = ElectionResult.newLeadingResult(controllerId, epoch);
                 for (RemoteNode remoteNode : remoteNodeManager.getOtherControllerCandidates()) {
-                    masterNetworkManager.sendRequest(remoteNode.getNodeId(), result.toBuffer());
+                    masterNetworkManager.sendRequest(remoteNode.getNodeId(), result.toMessage());
                 }
 
                 log.info("election has finished, controller id {} is elected !!!", electionResult.getControllerId());
@@ -272,12 +272,11 @@ public class ControllerCandidate {
          * @param remoteEleResult
          */
         private void replyRejectedResult(ElectionResult remoteEleResult) {
-            int currentNoteId = Configuration.getInstance().getNodeId();
-            ElectionResultAck completeAck = ElectionResultAck.newReject(electionResult.getControllerId(), electionResult.getEpoch(), currentNoteId);
+            ElectionResultAck completeAck = ElectionResultAck.newReject(electionResult.getControllerId(), electionResult.getEpoch());
             log.info("rejected remote election result: {}, because current election result be better: {}",
                     JSON.toJSONString(remoteEleResult), JSON.toJSONString(electionResult));
             // 发送 ACK 给 leader , 确保其他非leader节点都已收到
-            masterNetworkManager.sendRequest(remoteEleResult.getFromNodeId(), completeAck.toBuffer());
+            masterNetworkManager.sendRequest(remoteEleResult.getFromNodeId(), completeAck.toMessage());
         }
 
         /**
@@ -287,14 +286,13 @@ public class ControllerCandidate {
          * @param remoteEleResult
          */
         private void replyAcceptResult(int remoteNodeId, ElectionResult remoteEleResult) {
-            int currentNoteId = Configuration.getInstance().getNodeId();
             electionResult = remoteEleResult;
             int controllerId = remoteEleResult.getControllerId();
             int epoch = remoteEleResult.getEpoch();
-            ElectionResultAck completeAck = ElectionResultAck.newAccept(controllerId, epoch, currentNoteId);
+            ElectionResultAck completeAck = ElectionResultAck.newAccept(controllerId, epoch);
             log.info("accepted remote election result: {}", JSON.toJSONString(remoteEleResult));
             // 发送 ACK 给 leader , 确保其他非leader节点都已收到
-            masterNetworkManager.sendRequest(remoteNodeId, completeAck.toBuffer());
+            masterNetworkManager.sendRequest(remoteNodeId, completeAck.toMessage());
         }
 
         private void finishedVoting() {
@@ -304,14 +302,12 @@ public class ControllerCandidate {
         }
     }
 
-    private Integer handleVoteResponse(ByteBuffer buffer) {
+    private Integer handleVoteResponse(Vote vote) {
 
-        List<RemoteNode> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
         int totalCandidates = remoteNodeManager.getTotalCandidate();
         // 定义 quorum 数量，如若controller候选节点有三个，则quorum = 3 / 2 + 1 = 2
         int quorum = remoteNodeManager.getQuorum();
 
-        Vote vote = Vote.parseFrom(buffer);
         log.info("receive vote from remote node: {}", JSON.toJSONString(vote));
 
         if (vote.getFromNodeId() == null) {
@@ -358,9 +354,8 @@ public class ControllerCandidate {
     private void restartVoteRound() {
         // 所有候选人的选票都以收到, 此时仍未选举出controller, 则认为该轮选举失败
         // 此时需要调整下一轮选举, 选择投票给当前候选人中nodeId最大的一位
-        Integer betterControllerNodeId = getBetterControllerNodeId(votes);
-        Configuration configuration = Configuration.getInstance();
-        this.currentVote = new Vote(voteRound, configuration.getNodeId(), betterControllerNodeId);
+        int betterControllerNodeId = getBetterControllerNodeId(votes);
+        this.currentVote = new Vote(voteRound, betterControllerNodeId);
         log.info("this vote round failed, try to better candidate vote: {}", JSON.toJSONString(currentVote));
 
         try {
@@ -376,9 +371,9 @@ public class ControllerCandidate {
      *
      * @return
      */
-    private Integer getBetterControllerNodeId(List<Vote> votes) {
+    private int getBetterControllerNodeId(List<Vote> votes) {
 
-        Integer controllerNodeId = 0;
+        int controllerNodeId = 0;
         for (Vote vote : votes) {
             if (vote.getTargetNodeId() > controllerNodeId) {
                 controllerNodeId = vote.getTargetNodeId();

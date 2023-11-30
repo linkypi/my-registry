@@ -1,5 +1,6 @@
 package org.hiraeth.govern.server.node.entity;
 
+import cn.hutool.core.bean.BeanUtil;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +16,7 @@ import java.nio.ByteBuffer;
 @Slf4j
 @Getter
 @Setter
-public class ElectionResultAck {
+public class ElectionResultAck extends MessageBase{
 
     @Getter
     public enum AckResult {
@@ -27,44 +28,46 @@ public class ElectionResultAck {
         private int value;
     }
 
-    private int controllerId;
-    private int epoch;
-    private int fromNodeId;
+
     // 1: 接收选举结果 2: 拒绝选举结果, 应该使用当前选举结果
     private int result;
 
-    public ElectionResultAck(int controllerId, int epoch, int fromNodeId, int result){
+    public ElectionResultAck(int controllerId, int epoch, int result){
+        super();
+        this.messageType = MessageType.ElectionCompleteAck;
         this.controllerId = controllerId;
         this.epoch = epoch;
-        this.fromNodeId = fromNodeId;
         this.result = result;
     }
 
-    public ByteBuffer toBuffer(){
-        ByteBuffer buffer = ByteBuffer.allocate(24);
-        buffer.putInt(MessageType.ElectionCompleteAck.getValue());
-        buffer.putInt(controllerId);
-        buffer.putInt(epoch);
-        buffer.putInt(fromNodeId);
+    public Message toMessage(){
+        ByteBuffer buffer = toBuffer();
+        return new Message(messageType, buffer.array());
+    }
+
+    @Override
+    protected void writePayload(ByteBuffer buffer){
         buffer.putInt(result);
-        return buffer;
     }
 
-    public static ElectionResultAck newAccept(int controllerId, int epoch, int fromNodeId){
+    public ByteBuffer toBuffer(){
+        return super.newBuffer(4);
+    }
+
+    public static ElectionResultAck newAccept(int controllerId, int epoch){
         return new ElectionResultAck(controllerId, epoch,
-                fromNodeId, AckResult.Accepted.getValue());
+                AckResult.Accepted.getValue());
     }
 
-    public static ElectionResultAck newReject(int controllerId, int epoch, int fromNodeId){
+    public static ElectionResultAck newReject(int controllerId, int epoch){
         return new ElectionResultAck(controllerId, epoch,
-                fromNodeId, AckResult.Rejected.getValue());
+                AckResult.Rejected.getValue());
     }
 
-    public static ElectionResultAck parseFrom(ByteBuffer buffer) {
-        int controllerId = buffer.getInt();
-        int epoch = buffer.getInt();
-        int fromNodeId = buffer.getInt();
-        int result = buffer.getInt();
-        return new ElectionResultAck(controllerId, epoch, fromNodeId, result);
+    public static ElectionResultAck parseFrom(MessageBase messageBase) {
+        ByteBuffer buffer = messageBase.getBuffer();
+        ElectionResultAck resultAck = BeanUtil.copyProperties(messageBase, ElectionResultAck.class);
+        resultAck.setResult(buffer.getInt());
+        return resultAck;
     }
 }

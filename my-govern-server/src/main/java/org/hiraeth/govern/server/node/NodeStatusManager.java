@@ -6,6 +6,7 @@ import org.hiraeth.govern.server.node.entity.ElectionResult;
 import org.hiraeth.govern.server.node.entity.MasterRole;
 import org.hiraeth.govern.server.node.entity.NodeStatus;
 import org.hiraeth.govern.server.node.entity.SlotRang;
+import org.hiraeth.govern.server.node.master.ElectionStage;
 
 import java.util.Map;
 
@@ -35,6 +36,8 @@ public class NodeStatusManager {
      */
     private int controllerId;
     private int epoch;
+
+    private ElectionStage.ELStage stage = ElectionStage.ELStage.ELECTING;
     // 新leader开始统领的时间
     private long startTimestamp;
     // 当前机器的角色

@@ -3,7 +3,6 @@ package org.hiraeth.govern.server.node.entity;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.master.ElectionStage;
 
 import java.nio.ByteBuffer;
@@ -16,26 +15,25 @@ import java.nio.ByteBuffer;
 @Slf4j
 @Getter
 @Setter
-public class ElectionResult {
-    private int controllerId;
-    private int epoch;
-    private long timestamp;
-    private int fromNodeId;
-    //       // 选举阶段
-    //        ELECTING 1,
-    //        // 候选阶段, 已有初步投票结果, 需进一步确认
-    //        CANDIDATE 2,
-    //        // 领导阶段, 即已选举产生 leader
-    //        LEADING 3
-    private int stage;
+public class ElectionResult extends MessageBase{
 
+    // 角色, 无需远程传输
     private MasterRole masterRole;
 
+    public ElectionResult() {
+        super();
+        this.messageType = MessageType.ElectionComplete;
+    }
+
+    public Message toMessage(){
+        ByteBuffer buffer = toBuffer();
+        return new Message(messageType, buffer.array());
+    }
     public ElectionResult(int controllerId, int epoch) {
+        super();
+        this.messageType = MessageType.ElectionComplete;
         this.controllerId = controllerId;
         this.epoch = epoch;
-        this.timestamp = System.currentTimeMillis();
-        this.fromNodeId = Configuration.getInstance().getNodeId();
     }
 
     public static ElectionResult newElectingResult(int controllerId, int epoch){
@@ -65,22 +63,16 @@ public class ElectionResult {
     }
 
     public ByteBuffer toBuffer() {
-        ByteBuffer buffer = ByteBuffer.allocate(28);
-        buffer.putInt(MessageType.ElectionComplete.getValue());
-        buffer.putInt(controllerId);
-        buffer.putInt(epoch);
-        buffer.putLong(System.currentTimeMillis());
-        buffer.putInt(fromNodeId);
-        buffer.putInt(stage);
-        return buffer;
+        return super.newBuffer(0);
     }
 
-    public static ElectionResult parseFrom(ByteBuffer buffer) {
-        int controllerId = buffer.getInt();
-        int epoch = buffer.getInt();
-        long timeStamp = buffer.getLong();
-        int from = buffer.getInt();
-        int stage = buffer.getInt();
-        return new ElectionResult(controllerId, epoch, timeStamp, from, stage);
+    public static ElectionResult parseFrom(MessageBase messageBase) {
+        ElectionResult electionResult = new ElectionResult();
+        electionResult.setStage(messageBase.stage);
+        electionResult.setEpoch(messageBase.epoch);
+        electionResult.setTimestamp(messageBase.timestamp);
+        electionResult.setControllerId(messageBase.controllerId);
+        electionResult.setFromNodeId(messageBase.fromNodeId);
+        return electionResult;
     }
 }
