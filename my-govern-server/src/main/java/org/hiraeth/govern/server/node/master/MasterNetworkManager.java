@@ -8,7 +8,7 @@ import org.hiraeth.govern.server.node.entity.NodeAddress;
 import org.hiraeth.govern.server.node.entity.NodeStatus;
 import org.hiraeth.govern.server.node.NodeStatusManager;
 import org.hiraeth.govern.server.node.entity.RemoteNode;
-import org.hiraeth.govern.server.node.entity.RequestType;
+import org.hiraeth.govern.server.node.entity.MessageType;
 
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -147,26 +147,26 @@ public class MasterNetworkManager extends NetworkManager {
         return true;
     }
 
-    public ByteBuffer takeResponseMessage(RequestType requestType){
+    public ByteBuffer takeResponseMessage(MessageType messageType){
         try {
-            return masterReceiveQueues.get(requestType.getValue()).take();
+            return masterReceiveQueues.get(messageType.getValue()).take();
         }catch (Exception ex){
             log.error("take master message from receive queue failed.", ex);
             return null;
         }
     }
 
-    public int countResponseMessage(RequestType requestType){
-        BlockingQueue<ByteBuffer> queue = masterReceiveQueues.get(requestType.getValue());
+    public int countResponseMessage(MessageType messageType){
+        BlockingQueue<ByteBuffer> queue = masterReceiveQueues.get(messageType.getValue());
         if(queue == null){
             return 0;
         }
         return queue.size();
     }
 
-    public ByteBuffer takeSlaveMessage(int nodeId, RequestType requestType){
+    public ByteBuffer takeSlaveMessage(int nodeId, MessageType messageType){
         try {
-            return slaveReceiveQueues.get(nodeId).get(requestType.getValue()).take();
+            return slaveReceiveQueues.get(nodeId).get(messageType.getValue()).take();
         }catch (Exception ex){
             log.error("take slave message from receive queue failed.", ex);
             return null;
@@ -244,8 +244,8 @@ public class MasterNetworkManager extends NetworkManager {
         // 初始化发送请求队列
         sendQueues.put(remoteNodeId, sendQueue);
 
-        for (RequestType requestType : RequestType.values()){
-            masterReceiveQueues.put(requestType.getValue(), new LinkedBlockingQueue<>());
+        for (MessageType messageType : MessageType.values()){
+            masterReceiveQueues.put(messageType.getValue(), new LinkedBlockingQueue<>());
         }
 
         new MasterWriteThread(socket, sendQueue).start();
@@ -260,8 +260,8 @@ public class MasterNetworkManager extends NetworkManager {
 
         // 请求类型 -> 响应
         Map<Integer, BlockingQueue<ByteBuffer>> slaveReceiveQueue = new ConcurrentHashMap<>();
-        for (RequestType requestType : RequestType.values()){
-            slaveReceiveQueue.put(requestType.getValue(), new LinkedBlockingQueue<>());
+        for (MessageType messageType : MessageType.values()){
+            slaveReceiveQueue.put(messageType.getValue(), new LinkedBlockingQueue<>());
         }
         // 初始化接收队列
         slaveReceiveQueues.put(remoteNodeId, slaveReceiveQueue);

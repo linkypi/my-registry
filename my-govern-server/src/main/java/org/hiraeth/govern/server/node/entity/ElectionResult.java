@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.ElectionStage;
+import org.hiraeth.govern.server.node.master.ElectionStage;
 
 import java.nio.ByteBuffer;
 
@@ -28,6 +28,8 @@ public class ElectionResult {
     //        // 领导阶段, 即已选举产生 leader
     //        LEADING 3
     private int stage;
+
+    private MasterRole masterRole;
 
     public ElectionResult(int controllerId, int epoch) {
         this.controllerId = controllerId;
@@ -64,7 +66,7 @@ public class ElectionResult {
 
     public ByteBuffer toBuffer() {
         ByteBuffer buffer = ByteBuffer.allocate(28);
-        buffer.putInt(RequestType.ElectionComplete.getValue());
+        buffer.putInt(MessageType.ElectionComplete.getValue());
         buffer.putInt(controllerId);
         buffer.putInt(epoch);
         buffer.putLong(System.currentTimeMillis());

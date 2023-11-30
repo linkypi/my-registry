@@ -2,6 +2,7 @@ package org.hiraeth.govern.server.node.master;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.node.NodeStatusManager;
+import org.hiraeth.govern.server.node.entity.MessageType;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -24,7 +25,7 @@ public class MasterWriteThread extends Thread{
     /**
      * 发送消息队列
      */
-    private LinkedBlockingQueue<ByteBuffer> sendQueue = new LinkedBlockingQueue<>();
+    private LinkedBlockingQueue<ByteBuffer> sendQueue;
 
     public MasterWriteThread(Socket socket, LinkedBlockingQueue<ByteBuffer> sendQueue){
         this.socket = socket;
@@ -44,13 +45,18 @@ public class MasterWriteThread extends Thread{
             try {
                 // 阻塞获取待发送请求
                 ByteBuffer buffer = sendQueue.take();
+//                int messageType = buffer.getInt();
+//                buffer.position(0);
 
                 outputStream.writeInt(buffer.capacity());
                 outputStream.write(buffer.array());
                 outputStream.flush();
 
-                log.info("sending message to remote node: {}, message size is {} bytes.",
-                        socket.getRemoteSocketAddress(), buffer.capacity());
+                MessageType msgTypeEnum = MessageType.of(1);
+                String msgTypeStr = msgTypeEnum == null ? "-" : msgTypeEnum.name();
+
+                log.info("sending message to remote node: {}, message type: {}, message size : {} bytes.",
+                        socket.getRemoteSocketAddress(), msgTypeStr, buffer.capacity());
             }catch (InterruptedException ex){
                 log.error("get message from send queue failed.", ex);
                 NodeStatusManager.setFatal();

@@ -1,12 +1,17 @@
 package org.hiraeth.govern.server.node.server;
 
+import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.entity.MasterRole;
+import org.hiraeth.govern.server.node.NodeStatusManager;
+import org.hiraeth.govern.server.node.entity.*;
+import org.hiraeth.govern.server.node.master.Controller;
 import org.hiraeth.govern.server.node.master.ControllerCandidate;
 import org.hiraeth.govern.server.node.master.MasterNetworkManager;
 import org.hiraeth.govern.server.node.master.RemoteNodeManager;
-import org.hiraeth.govern.server.node.entity.RemoteNode;
+
+import java.nio.ByteBuffer;
+import java.util.Map;
 
 /**
  * @author: lynch
@@ -30,7 +35,6 @@ public class MasterNodeServer extends NodeServer {
     public MasterNodeServer(){
         this.remoteNodeManager = new RemoteNodeManager();
         this.masterNetworkManager = new MasterNetworkManager(remoteNodeManager);
-        this.controllerCandidate = new ControllerCandidate(masterNetworkManager, remoteNodeManager);
     }
 
     @Override
@@ -53,10 +57,46 @@ public class MasterNodeServer extends NodeServer {
         // 投票选举 Controller
         boolean isControllerCandidate = configuration.isControllerCandidate();
         if(isControllerCandidate) {
-            MasterRole masterRole = controllerCandidate.voteForControllerElection();
+            this.controllerCandidate = new ControllerCandidate(masterNetworkManager, remoteNodeManager);
+            ElectionResult electionResult = controllerCandidate.voteForControllerElection();
 
+            // update current node status
+            NodeStatusManager instance = NodeStatusManager.getInstance();
+            instance.updateStatus(electionResult);
+
+            if(electionResult.getMasterRole() == MasterRole.Controller){
+                Controller controller = new Controller(remoteNodeManager, masterNetworkManager);
+                controller.allocateSlots();
+            }else{
+                // 接收槽位分配
+                waitForSlotAllocateResult();
+            }
         }
         // 监听slave节点发起的请求
         masterNetworkManager.waitSlaveNodeConnect();
+    }
+
+    private void waitForSlotAllocateResult() {
+        try {
+            ByteBuffer buffer = masterNetworkManager.takeResponseMessage(MessageType.AllocateSlots);
+            SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(buffer);
+            if (slotAllocateResult.getSlots() == null) {
+                log.error("allocated slots from controller is null: {}", JSON.toJSONString(slotAllocateResult));
+                NodeStatusManager.setFatal();
+                return;
+            }
+
+            Controller.persistSlotsAllocation(slotAllocateResult.getSlots());
+            NodeStatusManager.getInstance().setSlots(slotAllocateResult.getSlots());
+
+            log.debug("persist slots success.");
+            // 回复ACK
+            SlotAllocateResultAck resultAck = new SlotAllocateResultAck();
+            masterNetworkManager.sendRequest(slotAllocateResult.getFromNodeId(), resultAck.toBuffer());
+            log.debug("replyed ack slot allocation");
+        } catch (Exception ex) {
+            log.error("wait for slot allocate result occur error", ex);
+            NodeStatusManager.setFatal();
+        }
     }
 }

@@ -51,6 +51,8 @@ public class Configuration {
     private String masterServerAddress;
     private int masterServerPort;
 
+    private String dataDir;
+
     private List<NodeAddress> masterNodeServers = new ArrayList<>();
 
     private static class Singleton {
@@ -97,11 +99,17 @@ public class Configuration {
             }
             log.debug("parameter {} = {}", NODE_ID, nodeIdStr);
 
-            if(this.nodeType == NodeType.Master) {
+            if (this.nodeType == NodeType.Master) {
                 parseMasterNodeServer(configProperties);
-            }else{
+            } else {
                 parseSlaveNodeConfig(configProperties);
             }
+
+            String dir = configProperties.getProperty(DATA_DIR);
+            if (StringUtil.isEmpty(dir)) {
+                throw new IllegalArgumentException(DATA_DIR + " cannot empty.");
+            }
+            this.dataDir = dir;
         } catch (IllegalArgumentException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);
         } catch (FileNotFoundException ex) {

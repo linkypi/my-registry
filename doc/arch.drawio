@@ -1,4 +1,4 @@
-<mxfile host="Electron" modified="2023-11-28T09:17:48.702Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.1.2 Chrome/106.0.5249.199 Electron/21.4.3 Safari/537.36" etag="2QPB6tR0ZLFBL-Cvjqrf" version="21.1.2" type="device" pages="2">
+<mxfile host="Electron" modified="2023-11-30T01:37:53.425Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.1.2 Chrome/106.0.5249.199 Electron/21.4.3 Safari/537.36" etag="E1mh3E3sEbnuhkPLfHmE" version="21.1.2" type="device" pages="2">
   <diagram id="O6fWldywMc8EjPMWapjO" name="高性能服务注册中心架构">
     <mxGraphModel dx="1418" dy="828" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
@@ -37,10 +37,10 @@
         <mxCell id="zHOcSUtExslfYtkRugfd-41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" parent="1" source="zHOcSUtExslfYtkRugfd-3" target="zHOcSUtExslfYtkRugfd-10" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="zHOcSUtExslfYtkRugfd-3" value="Mater 机器" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
+        <mxCell id="zHOcSUtExslfYtkRugfd-3" value="Mater 机器&lt;br&gt;(&lt;font style=&quot;border-color: var(--border-color);&quot; color=&quot;#ff8000&quot;&gt;普通 角色&lt;/font&gt;)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
           <mxGeometry x="215" y="440" width="210" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="zHOcSUtExslfYtkRugfd-4" value="Shard&amp;nbsp;&lt;br&gt;数据分片" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+        <mxCell id="zHOcSUtExslfYtkRugfd-4" value="slots&lt;br&gt;槽位范围" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
           <mxGeometry x="260" y="480" width="120" height="45" as="geometry" />
         </mxCell>
         <mxCell id="zHOcSUtExslfYtkRugfd-6" value="数据复制" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;" parent="1" vertex="1">
@@ -87,7 +87,7 @@
         <mxCell id="zHOcSUtExslfYtkRugfd-10" value="Mater 机器&lt;br&gt;(&lt;font color=&quot;#ff8000&quot;&gt;Controller 角色&lt;/font&gt;)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
           <mxGeometry x="490" y="440" width="210" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="zHOcSUtExslfYtkRugfd-11" value="Shard&amp;nbsp;&lt;br&gt;数据分片" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+        <mxCell id="zHOcSUtExslfYtkRugfd-11" value="slots&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;槽位范围" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
           <mxGeometry x="535" y="480" width="120" height="45" as="geometry" />
         </mxCell>
         <mxCell id="zHOcSUtExslfYtkRugfd-12" value="数据复制" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;" parent="1" vertex="1">
@@ -118,10 +118,10 @@
         <mxCell id="zHOcSUtExslfYtkRugfd-42" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" parent="1" source="zHOcSUtExslfYtkRugfd-16" target="zHOcSUtExslfYtkRugfd-10" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="zHOcSUtExslfYtkRugfd-16" value="Mater 机器" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
+        <mxCell id="zHOcSUtExslfYtkRugfd-16" value="Mater 机器&lt;br&gt;(&lt;font style=&quot;border-color: var(--border-color);&quot; color=&quot;#ff8000&quot;&gt;普通 角色&lt;/font&gt;)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
           <mxGeometry x="785" y="440" width="210" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="zHOcSUtExslfYtkRugfd-17" value="Shard&amp;nbsp;&lt;br&gt;数据分片" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+        <mxCell id="zHOcSUtExslfYtkRugfd-17" value="slots&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;槽位范围" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
           <mxGeometry x="830" y="480" width="120" height="45" as="geometry" />
         </mxCell>
         <mxCell id="zHOcSUtExslfYtkRugfd-18" value="数据复制" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;" parent="1" vertex="1">
@@ -172,11 +172,11 @@
         <mxCell id="zHOcSUtExslfYtkRugfd-44" value="节点注册" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;" parent="1" vertex="1">
           <mxGeometry x="714" y="570" width="60" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="zHOcSUtExslfYtkRugfd-46" value="分配 shard , 定时心跳" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;" parent="1" vertex="1">
-          <mxGeometry x="373" y="600" width="130" height="20" as="geometry" />
+        <mxCell id="zHOcSUtExslfYtkRugfd-46" value="分配 slots, 定时心跳" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;" parent="1" vertex="1">
+          <mxGeometry x="373" y="595" width="130" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="zHOcSUtExslfYtkRugfd-47" value="分配 shard , 定时心跳" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;" parent="1" vertex="1">
-          <mxGeometry x="684" y="600" width="130" height="20" as="geometry" />
+        <mxCell id="zHOcSUtExslfYtkRugfd-47" value="分配 slots, 定时心跳" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;" parent="1" vertex="1">
+          <mxGeometry x="684" y="595" width="130" height="30" as="geometry" />
         </mxCell>
         <mxCell id="zHOcSUtExslfYtkRugfd-53" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" parent="1" source="zHOcSUtExslfYtkRugfd-49" target="zHOcSUtExslfYtkRugfd-16" edge="1">
           <mxGeometry relative="1" as="geometry" />

@@ -42,7 +42,7 @@ public class ElectionResultAck {
 
     public ByteBuffer toBuffer(){
         ByteBuffer buffer = ByteBuffer.allocate(24);
-        buffer.putInt(RequestType.ElectionCompleteAck.getValue());
+        buffer.putInt(MessageType.ElectionCompleteAck.getValue());
         buffer.putInt(controllerId);
         buffer.putInt(epoch);
         buffer.putInt(fromNodeId);

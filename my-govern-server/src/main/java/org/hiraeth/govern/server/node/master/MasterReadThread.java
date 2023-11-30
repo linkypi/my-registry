@@ -2,6 +2,7 @@ package org.hiraeth.govern.server.node.master;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.node.NodeStatusManager;
+import org.hiraeth.govern.server.node.entity.MessageType;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -39,32 +40,34 @@ public class MasterReadThread extends Thread{
     public void run() {
 
         log.info("start read io thread for remote node: {}", socket.getRemoteSocketAddress());
-        while (NodeStatusManager.isRunning()){
+        while (NodeStatusManager.isRunning()) {
 
             try {
                 // 从IO流读取一条消息
                 int length = inputStream.readInt();
                 byte[] bytes = new byte[length];
-                inputStream.readFully(bytes,0,length);
+                inputStream.readFully(bytes, 0, length);
 
                 // 将字节数组封装成byteBuffer
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                int requestType = buffer.getInt();
-//                buffer.position(0);
-                if(!receiveQueue.containsKey(requestType)){
-                    receiveQueue.put(requestType, new LinkedBlockingQueue<>());
-                }
-                receiveQueue.get(requestType).add(buffer);
+                int messageType = buffer.getInt();
 
-                log.info("get message from remote node: {}, message size is {} bytes",
-                        socket.getRemoteSocketAddress(), buffer.capacity());
-            }catch (IOException ex){
+                if (!receiveQueue.containsKey(messageType)) {
+                    receiveQueue.put(messageType, new LinkedBlockingQueue<>());
+                }
+                receiveQueue.get(messageType).add(buffer);
+
+                MessageType msgTypeEnum = MessageType.of(messageType);
+                String msgTypeStr = msgTypeEnum == null ? "-" : msgTypeEnum.name();
+                log.info("get message from remote node: {}, message type: {}, message size: {} bytes",
+                        socket.getRemoteSocketAddress(), msgTypeStr, buffer.capacity());
+            } catch (IOException ex) {
                 log.error("read message from remote node failed.", ex);
                 NodeStatusManager.setFatal();
             }
         }
 
-        if(NodeStatusManager.isFatal()){
+        if (NodeStatusManager.isFatal()) {
             log.error("read io thread encounters fatal exception, system is going to shutdown.");
         }
     }

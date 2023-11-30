@@ -8,7 +8,7 @@ import lombok.Getter;
  * @date: 2023/11/28 17:39
  */
 @Getter
-public enum RequestType {
+public enum MessageType {
 
     /**
      * 发送当前节点信息，包括 node.id, isControllerCandidate等信息
@@ -23,9 +23,22 @@ public enum RequestType {
      * leader已选举完成
      */
     ElectionComplete(3),
-    ElectionCompleteAck(4);
-    RequestType(int value){
+    ElectionCompleteAck(4),
+    // 槽位分配
+    AllocateSlots(5),
+    AllocateSlotsAck(6)
+    ;
+    MessageType(int value){
         this.value = value;
     }
     private int value;
+
+    public static MessageType of(int value){
+        for(MessageType item: MessageType.values()){
+            if(value == item.value){
+                return item;
+            }
+        }
+        return null;
+    }
 }

@@ -35,6 +35,10 @@ public class RemoteNodeManager {
         return remoteMasterNodes.size();
     }
 
+    public List<RemoteNode> getAllRemoteMasterNodes(){
+        return new ArrayList<>(remoteMasterNodes.values());
+    }
+
     public List<RemoteNode> getOtherControllerCandidates(){
         Configuration configuration = Configuration.getInstance();
         int nodeId = configuration.getNodeId();

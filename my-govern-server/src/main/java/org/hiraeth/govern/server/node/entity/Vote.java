@@ -31,7 +31,7 @@ public class Vote {
 
     public ByteBuffer toBuffer(){
         ByteBuffer buffer = ByteBuffer.allocate(16);
-        buffer.putInt(RequestType.Vote.getValue());
+        buffer.putInt(MessageType.Vote.getValue());
         buffer.putInt(round);
         buffer.putInt(fromNodeId);
         buffer.putInt(targetNodeId);

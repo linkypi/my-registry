@@ -32,7 +32,7 @@ public class RemoteNode {
 
     public ByteBuffer toBuffer() {
         ByteBuffer buffer = ByteBuffer.allocate(20);
-        buffer.putInt(RequestType.NodeInfo.getValue());
+        buffer.putInt(MessageType.NodeInfo.getValue());
         buffer.putInt(nodeId);
         buffer.putInt(nodeType == NodeType.Master ? 1 : 0);
         buffer.putInt(isControllerCandidate ? 1 : 0);
@@ -41,7 +41,7 @@ public class RemoteNode {
 
     public static RemoteNode parseFrom(ByteBuffer buffer) {
         int requestType = buffer.getInt();
-        if (RequestType.NodeInfo.getValue() == requestType) {
+        if (MessageType.NodeInfo.getValue() == requestType) {
             int nodeId = buffer.getInt();
             NodeType nodeType = buffer.getInt() == 1 ? NodeType.Master : NodeType.Slave;
             int isCandidate = buffer.getInt();
