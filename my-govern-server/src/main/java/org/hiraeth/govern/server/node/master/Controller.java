@@ -2,13 +2,11 @@ package org.hiraeth.govern.server.node.master;
 
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.common.util.FileUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.NodeStatusManager;
 import org.hiraeth.govern.server.node.entity.*;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author: lynch
@@ -18,47 +16,55 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class Controller {
 
-    /**
-     * 槽位数量， 参考Redis Cluster Hash Slots实现
-     */
-    private static final int SLOTS_COUNT = 16384;
-    private static final String SLOTS_ALLOCATION_FILE_NAME = "slot_allocation";
 
     private RemoteNodeManager remoteNodeManager;
     private MasterNetworkManager masterNetworkManager;
-
-    private Map<Integer, SlotRang> slotsAllocation;
+    private SlotManager slotManager;
 
     public Controller(RemoteNodeManager remoteNodeManager, MasterNetworkManager masterNetworkManager) {
         this.remoteNodeManager = remoteNodeManager;
         this.masterNetworkManager = masterNetworkManager;
+        this.slotManager = new SlotManager();
     }
 
     public void allocateSlots() {
 
-        calculateSlots();
+        List<RemoteNode> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
+        Map<Integer, SlotRang> slotRangMap = slotManager.calculateSlots(otherControllerCandidates);
 
         // 持久化槽位分配结果
-        boolean success = persistSlotsAllocation(slotsAllocation);
+        boolean success = slotManager.persistAllSlots(slotRangMap);
         if (!success) {
             NodeStatusManager.setFatal();
             return;
         }
 
-        notifySlotsAllocation();
+        syncSlots(slotRangMap);
+
+        // 初始化自身负责的槽位
+        int nodeId = Configuration.getInstance().getNodeId();
+        SlotRang slotRang = slotRangMap.get(nodeId);
+        slotManager.initSlots(slotRang);
+
+        // 持久化自身负责的槽位
+        success = slotManager.persistNodeSlots(slotRang);
+        if (!success) {
+            NodeStatusManager.setFatal();
+            return;
+        }
 
         log.debug("persist slots success, notified other candidates, waiting for ack ...");
-        waitForSlotAllocateResultAck();
+        waitForSlotResultAck();
     }
 
-    private void waitForSlotAllocateResultAck() {
+    private void waitForSlotResultAck() {
         try {
             Set<Integer> confirmSet = new HashSet<>();
             while (NodeStatusManager.isRunning()) {
-                if (masterNetworkManager.countResponseMessage(MessageType.AllocateSlotsAck) == 0) {
-                    Thread.sleep(500);
-                    continue;
-                }
+//                if (masterNetworkManager.countResponseMessage(MessageType.AllocateSlotsAck) == 0) {
+//                    Thread.sleep(500);
+//                    continue;
+//                }
                 MessageBase message = masterNetworkManager.takeResponseMessage(MessageType.AllocateSlotsAck);
                 SlotAllocateResultAck ackResult = SlotAllocateResultAck.parseFrom(message);
                 confirmSet.add(ackResult.getFromNodeId());
@@ -73,43 +79,15 @@ public class Controller {
         }
     }
 
-    private void notifySlotsAllocation() {
+    private void syncSlots(Map<Integer, SlotRang> slotRangMap) {
         try {
-            SlotAllocateResult slotAllocateResult = new SlotAllocateResult(slotsAllocation);
+            SlotAllocateResult slotAllocateResult = new SlotAllocateResult(slotRangMap);
             for (RemoteNode remoteNode : remoteNodeManager.getOtherControllerCandidates()) {
                 masterNetworkManager.sendRequest(remoteNode.getNodeId(), slotAllocateResult.toMessage());
             }
         } catch (Exception ex) {
-            log.error("send allocation slots to other candidates occur error: {}", JSON.toJSONString(slotsAllocation), ex);
+            log.error("send allocation slots to other candidates occur error: {}", JSON.toJSONString(slotRangMap), ex);
             NodeStatusManager.setFatal();
         }
-    }
-
-    private void calculateSlots() {
-        List<RemoteNode> otherRemoteMasterNodes = remoteNodeManager.getOtherControllerCandidates();
-
-        int totalMasters = otherRemoteMasterNodes.size() + 1;
-
-        int slotsPerNode = SLOTS_COUNT / totalMasters;
-        int reminds = SLOTS_COUNT - slotsPerNode * totalMasters;
-
-        // controller 多分配多余的槽位
-        int controllerSlotsCount = slotsPerNode + reminds;
-
-        int index = 0;
-        slotsAllocation = new ConcurrentHashMap<>(totalMasters);
-        for (RemoteNode remoteNode : otherRemoteMasterNodes) {
-            slotsAllocation.put(remoteNode.getNodeId(), new SlotRang(index, index + slotsPerNode - 1));
-            index += slotsPerNode;
-        }
-        int nodeId = Configuration.getInstance().getNodeId();
-        slotsAllocation.put(nodeId, new SlotRang(index, controllerSlotsCount - 1));
-    }
-
-    public static boolean persistSlotsAllocation(Map<Integer, SlotRang> slotsAllocation) {
-        String dataDir = Configuration.getInstance().getDataDir();
-        String jsonString = JSON.toJSONString(slotsAllocation);
-        byte[] bytes = jsonString.getBytes();
-        return FileUtil.persist(dataDir, SLOTS_ALLOCATION_FILE_NAME, bytes);
     }
 }
