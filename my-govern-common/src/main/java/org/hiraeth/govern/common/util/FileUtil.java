@@ -53,7 +53,7 @@ public class FileUtil {
                     }
                 }
             }
-
+            log.info("persist success: {}.", dataDir + "/" + fileName);
             return true;
         } catch (Exception ex) {
             log.error("persist occur error, data dir: {}, file name: {}.", dataDir, fileName, ex);

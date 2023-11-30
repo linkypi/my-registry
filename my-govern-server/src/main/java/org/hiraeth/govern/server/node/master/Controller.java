@@ -53,7 +53,7 @@ public class Controller {
             return;
         }
 
-        log.debug("persist slots success, notified other candidates, waiting for ack ...");
+        log.debug("persist slots success, notified other candidates, waiting for ack: {}", JSON.toJSONString(slotRangMap));
         waitForSlotResultAck();
     }
 
@@ -84,6 +84,7 @@ public class Controller {
             SlotAllocateResult slotAllocateResult = new SlotAllocateResult(slotRangMap);
             for (RemoteNode remoteNode : remoteNodeManager.getOtherControllerCandidates()) {
                 masterNetworkManager.sendRequest(remoteNode.getNodeId(), slotAllocateResult.toMessage());
+                log.info("sync slots to remote node {} : {}.", remoteNode.getNodeId(), JSON.toJSONString(slotRangMap));
             }
         } catch (Exception ex) {
             log.error("send allocation slots to other candidates occur error: {}", JSON.toJSONString(slotRangMap), ex);

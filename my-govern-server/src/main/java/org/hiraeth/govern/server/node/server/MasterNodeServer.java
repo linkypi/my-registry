@@ -98,7 +98,7 @@ public class MasterNodeServer extends NodeServer {
 
                 NodeStatusManager.getInstance().setSlots(slotAllocateResult.getSlots());
 
-                log.debug("persist slots success.");
+                log.debug("persist slots success: {}", JSON.toJSONString(slots));
                 // 回复ACK
                 SlotAllocateResultAck resultAck = new SlotAllocateResultAck();
                 masterNetworkManager.sendRequest(slotAllocateResult.getFromNodeId(), resultAck.toMessage());
