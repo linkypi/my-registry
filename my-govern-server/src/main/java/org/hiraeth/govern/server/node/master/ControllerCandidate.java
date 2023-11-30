@@ -40,7 +40,15 @@ public class ControllerCandidate {
 
     private volatile ElectionResult electionResult;
 
+    /**
+     * 投票完成后放行
+     */
     private CountDownLatch countDownLatch;
+
+    /**
+     * 投票结果确认结果
+     */
+    private volatile HashSet<Integer> confirmList = new HashSet<>();
 
     public ControllerCandidate(MasterNetworkManager masterNetworkManager,
                                RemoteNodeManager remoteNodeManager) {
@@ -60,7 +68,6 @@ public class ControllerCandidate {
         int currentNodeId = configuration.getNodeId();
         this.currentVote = new Vote(1, currentNodeId, currentNodeId);
 
-        // 本轮选举仍未选举出来controller 则继续下一轮选举
         startElection();
 
         int leaderId = electionResult.getControllerId();
@@ -157,9 +164,11 @@ public class ControllerCandidate {
         return null;
     }
 
-    private volatile HashSet<Integer> confirmList = new HashSet<>();
-
     class ElectionCompleteHandlerThread extends Thread {
+
+        public ElectionCompleteHandlerThread(){
+            this.setName("ElectionCompleteHandlerThread");
+        }
         @Override
         public void run() {
             try {
@@ -174,14 +183,13 @@ public class ControllerCandidate {
                         int currentNoteId = Configuration.getInstance().getNodeId();
                         if (ElectionStage.ELStage.LEADING.getValue() == remoteEleResult.getStage()) {
                             // 选举完成
-                            log.info("the controller id {} is elected by voting !!!", remoteEleResult.getControllerId());
+                            log.info("election has finished, the controller id is {}, current master node is follower.", remoteEleResult.getControllerId());
                             finishedVoting();
                             break;
                         }
 
                         // 当前机器没有投票结果, 可直接接收远程投票结果
                         if (electionResult == null) {
-                            // accept
                             replyAcceptResult(remoteEleResult.getFromNodeId(), remoteEleResult);
                         }
 
@@ -233,9 +241,11 @@ public class ControllerCandidate {
                                 masterNetworkManager.sendRequest(remoteNode.getNodeId(), result.toBuffer());
                             }
 
+                            log.info("election has finished, controller id {} is elected !!!", electionResult.getControllerId());
+
                             finishedVoting();
 
-                            log.info("election is finished, all the other master nodes has been notified .");
+                            log.info("election has finished, all the other master nodes has been notified .");
                             break;
                         }
                     }
@@ -288,7 +298,7 @@ public class ControllerCandidate {
     private Integer handleVoteResponse(ByteBuffer buffer) {
 
         List<RemoteNode> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
-        int totalCandidates = otherControllerCandidates.size() + 1;
+        int totalCandidates = remoteNodeManager.getTotalCandidate();
         // 定义 quorum 数量，如若controller候选节点有三个，则quorum = 3 / 2 + 1 = 2
         int quorum = remoteNodeManager.getQuorum();
 
@@ -311,16 +321,16 @@ public class ControllerCandidate {
 
         // 若发现票数大于等于 quorum 的票数, 此时可以判定
         if (votes.size() >= quorum) {
-            Integer controllerNodeId = getControllerFromVotes(votes, quorum);
+            Integer controllerNodeId = detectControllerIdFromVotes(votes, quorum);
             // 已经选出controller
             if (controllerNodeId != null) {
                 if (votes.size() == totalCandidates) {
-                    log.info("election completed, controller node id: {} !!! received all votes: {}",
+                    log.info("candidate controller node id: {} !!! received all votes: {}",
                             controllerNodeId, JSON.toJSONString(votes));
                     return controllerNodeId;
                 }
-                log.info("decided controller node id: {}, current vote size is {}, waiting for all votes received.",
-                        votes.size(), controllerNodeId);
+                log.info("candidate controller node id: {}, waiting for all votes received: {}.",
+                        controllerNodeId,  JSON.toJSONString(votes));
             } else {
                 log.info("cannot decide who is controller: {}", JSON.toJSONString(votes));
             }
@@ -368,7 +378,13 @@ public class ControllerCandidate {
         return controllerNodeId;
     }
 
-    private Integer getControllerFromVotes(List<Vote> votes, int quorum) {
+    /**
+     * 从投票结果中获取大多数选票，多数者胜出
+     * @param votes
+     * @param quorum
+     * @return
+     */
+    private Integer detectControllerIdFromVotes(List<Vote> votes, int quorum) {
 
         Map<Integer, Integer> voteCountMap = new ConcurrentHashMap<>();
 
