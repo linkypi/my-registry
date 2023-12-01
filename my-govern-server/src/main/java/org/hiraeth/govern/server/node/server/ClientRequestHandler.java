@@ -1,8 +1,9 @@
 package org.hiraeth.govern.server.node.server;
 
+import cn.hutool.core.bean.BeanUtil;
 import org.hiraeth.govern.common.domain.*;
 import org.hiraeth.govern.server.node.NodeStatusManager;
-import org.hiraeth.govern.server.node.master.SlotManager;
+import org.hiraeth.govern.server.node.master.RemoteNodeManager;
 
 /**
  * @author: lynch
@@ -11,26 +12,28 @@ import org.hiraeth.govern.server.node.master.SlotManager;
  */
 public class ClientRequestHandler {
 
-    private SlotManager slotManager;
+    private RemoteNodeManager remoteNodeManager;
 
-    public ClientRequestHandler( SlotManager slotManager){
-        this.slotManager = slotManager;
+    public ClientRequestHandler(RemoteNodeManager remoteNodeManager){
+        this.remoteNodeManager = remoteNodeManager;
     }
 
     public Response handle(BaseRequest request) {
-        if (request instanceof FetchSlotsRequest) {
-            FetchSlotsResponse fetchSlotsResponse = handelFetchSlots((FetchSlotsRequest) request);
-            return fetchSlotsResponse.toResponse();
+        if (request.getRequestType() == RequestType.FetchMetaData) {
+            FetchMetaDataRequest fetchMetaDataRequest = BeanUtil.copyProperties(request, FetchMetaDataRequest.class);
+            FetchMetaDataResponse fetchMetaDataResponse = createMetaData(fetchMetaDataRequest);
+            return fetchMetaDataResponse.toResponse();
         }
 
         return null;
     }
 
-    private FetchSlotsResponse handelFetchSlots(FetchSlotsRequest request){
+    private FetchMetaDataResponse createMetaData(FetchMetaDataRequest request){
         NodeStatusManager nodeStatusManager = NodeStatusManager.getInstance();
-        FetchSlotsResponse fetchSlotsResponse = new FetchSlotsResponse();
-        fetchSlotsResponse.setRequestId(request.getRequestId());
-        fetchSlotsResponse.setSlots(nodeStatusManager.getSlots());
-        return fetchSlotsResponse;
+        FetchMetaDataResponse fetchMetaDataResponse = new FetchMetaDataResponse();
+        fetchMetaDataResponse.setRequestId(request.getRequestId());
+        fetchMetaDataResponse.setSlots(nodeStatusManager.getSlots());
+        fetchMetaDataResponse.setMasterAddresses(remoteNodeManager.getAllOnlineMasterAddresses());
+        return fetchMetaDataResponse;
     }
 }

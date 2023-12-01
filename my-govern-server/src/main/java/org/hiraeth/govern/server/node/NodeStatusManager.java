@@ -44,11 +44,12 @@ public class NodeStatusManager {
     private MasterRole masterRole;
     private Map<Integer, SlotRang> slots;
 
-    public void updateStatus(ElectionResult electionResult){
+    public void updateStatus(ElectionResult electionResult, ElectionStage.ELStage elStage){
         this.controllerId = electionResult.getControllerId();
         this.epoch = electionResult.getEpoch();
         this.startTimestamp = electionResult.getTimestamp();
         this.masterRole = electionResult.getMasterRole();
+        this.stage = elStage;
     }
 
     public static NodeStatus getNodeStatus() {

@@ -5,6 +5,8 @@ import lombok.Setter;
 
 import java.nio.ByteBuffer;
 
+import static org.hiraeth.govern.common.constant.Constant.REQUEST_HEADER_LENGTH;
+
 /**
  * @author: lynch
  * @description:
@@ -23,7 +25,7 @@ public class BaseResponse {
     }
 
     protected void toBuffer(int payloadLength) {
-        int length = 24 + payloadLength;
+        int length = 20 + REQUEST_HEADER_LENGTH + payloadLength;
         buffer = ByteBuffer.allocate(length);
 
         buffer.putInt(length);

@@ -3,7 +3,7 @@ package org.hiraeth.govern.server.node.master;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.NodeStatusManager;
-import org.hiraeth.govern.server.node.entity.NodeAddress;
+import org.hiraeth.govern.common.domain.MasterAddress;
 import org.hiraeth.govern.server.node.entity.NodeStatus;
 import org.hiraeth.govern.server.node.entity.RemoteNode;
 
@@ -39,14 +39,14 @@ public class SlaveConnectionListener extends Thread{
         boolean fatalError = false;
         while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING && retries <= DEFAULT_RETRIES) {
             try {
-                NodeAddress currentNodeAddress = Configuration.getInstance().getCurrentNodeAddress();
-                InetSocketAddress endpoint = new InetSocketAddress(currentNodeAddress.getHost(), currentNodeAddress.getSlavaPort());
+                MasterAddress currentMasterAddress = Configuration.getInstance().getCurrentNodeAddress();
+                InetSocketAddress endpoint = new InetSocketAddress(currentMasterAddress.getHost(), currentMasterAddress.getSlavaPort());
 
                 serverSocket = new ServerSocket();
                 serverSocket.setReuseAddress(true);
                 serverSocket.bind(endpoint);
 
-                log.info("slave binding {}:{}.", currentNodeAddress.getHost(), currentNodeAddress.getSlavaPort());
+                log.info("slave binding {}:{}.", currentMasterAddress.getHost(), currentMasterAddress.getSlavaPort());
 
                 // 跟发起连接请求的master建立网络连接
                 while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING){

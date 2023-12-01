@@ -7,6 +7,9 @@ package org.hiraeth.govern.common.constant;
  * @date: 2023/11/27 12:30
  */
 public class Constant {
+
+    public static final int SLOTS_COUNT = 16384;
+
     public static final String NODE_TYPE = "node.type";
     public static final String NODE_ID = "node.id";
     public static final String IS_CONTROLLER_CANDIDATE = "controller.candidate";
@@ -16,5 +19,7 @@ public class Constant {
     public static final String DATA_DIR = "data.dir";
 
     public static final String GOVERN_SERVERS = "govern.servers";
-    public static final String x = "";
+    public static final String SERVICE_NAME = "service.name";
+
+    public static final int REQUEST_HEADER_LENGTH = 4;
 }

@@ -3,10 +3,10 @@ package org.hiraeth.govern.server.node.server;
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.BaseRequest;
-import org.hiraeth.govern.common.domain.BaseResponse;
 import org.hiraeth.govern.common.domain.Response;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.entity.NodeAddress;
+import org.hiraeth.govern.common.domain.MasterAddress;
+import org.hiraeth.govern.server.node.master.RemoteNodeManager;
 import org.hiraeth.govern.server.node.master.SlotManager;
 
 import java.io.IOException;
@@ -15,12 +15,10 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.LinkedBlockingDeque;
 
 /**
@@ -39,10 +37,10 @@ public class MasterNIOServer {
 
     private Map<String, LinkedBlockingDeque<Response>> responseQueues = new ConcurrentHashMap<>();
 
-    public MasterNIOServer(SlotManager slotManager) {
+    public MasterNIOServer(RemoteNodeManager remoteNodeManager) {
         try {
             this.clientConnectManager = new ClientConnectManager();
-            this.clientRequestHandler = new ClientRequestHandler(slotManager);
+            this.clientRequestHandler = new ClientRequestHandler(remoteNodeManager);
             this.selector = Selector.open();
         } catch (IOException ex) {
             log.error("master server selector open failed.", ex);
@@ -51,11 +49,11 @@ public class MasterNIOServer {
 
     public void start() {
         Configuration configuration = Configuration.getInstance();
-        NodeAddress currentNodeAddress = configuration.getCurrentNodeAddress();
-        int externalPort = currentNodeAddress.getExternalPort();
+        MasterAddress currentMasterAddress = configuration.getCurrentNodeAddress();
+        int externalPort = currentMasterAddress.getExternalPort();
 
         try {
-            InetSocketAddress inetSocketAddress = new InetSocketAddress(currentNodeAddress.getHost(), externalPort);
+            InetSocketAddress inetSocketAddress = new InetSocketAddress(currentMasterAddress.getHost(), externalPort);
 
             serverSocketChannel = ServerSocketChannel.open();
             serverSocketChannel.socket().setReuseAddress(true);
@@ -70,22 +68,22 @@ public class MasterNIOServer {
             ioThread.start();
 
         } catch (IOException e) {
-            log.error("start nio server occur error: {}", JSON.toJSONString(currentNodeAddress), e);
+            log.error("start nio server occur error: {}", JSON.toJSONString(currentMasterAddress), e);
         }
     }
 
     class IOThread extends Thread {
         @Override
         public void run() {
+            ClientConnection connection = null;
 
             while (!serverSocketChannel.socket().isClosed()) {
                 try {
-
                     int readyChannels = selector.select(1000);
-                    if(readyChannels == 0){
+//                    if(readyChannels == 0){
                         Thread.sleep(500);
-                        continue;
-                    }
+//                        continue;
+//                    }
                     Set<SelectionKey> selectionKeys = selector.selectedKeys();
                     if (selectionKeys == null || selectionKeys.size() == 0) {
                         continue;
@@ -94,28 +92,39 @@ public class MasterNIOServer {
                     Iterator<SelectionKey> iterator = selectionKeys.iterator();
                     while (iterator.hasNext()) {
                         SelectionKey selectionKey = iterator.next();
-                        iterator.remove();
-
+                        connection = (ClientConnection) selectionKey.attachment();
                         if ((selectionKey.readyOps() & SelectionKey.OP_ACCEPT) != 0) {
-                            accept(selectionKey);
+                            accept((ServerSocketChannel) selectionKey.channel());
+                            iterator.remove();
                         } else if ((selectionKey.readyOps() & SelectionKey.OP_READ) != 0) {
-                            if (selectionKey.isReadable()) {
-                                handleRequest(selectionKey);
-                            }
+                            handleRequest(connection);
                         } else if ((selectionKey.readyOps() & SelectionKey.OP_WRITE) != 0) {
-                            if (selectionKey.isReadable()) {
-                                replyClient(selectionKey);
-                            }
+                            replyClient(connection);
                         }
                     }
-                } catch (Exception ex) {
+                }catch (IOException ex) {
+                    // 客户端主动断开连接
+                    if (connection != null) {
+                        try {
+                            connection.getSocketChannel().close();
+                        } catch (IOException e) {
+                            log.error("close client socket channel occur error, connection id: {}", connection.getConnectionId());
+                        }
+                        clientConnectManager.remove(connection.getConnectionId());
+                        log.error("client disconnected, connection id: {}", connection.getConnectionId());
+                    } else {
+                        log.error("io exception occur.", ex);
+                    }
+
+                }
+                catch (Exception ex) {
                     log.error("network IO error", ex);
                 }
             }
         }
 
-        private void handleRequest( SelectionKey selectionKey) {
-            ClientConnection connection = (ClientConnection) selectionKey.attachment();
+        private void handleRequest(ClientConnection connection) throws IOException {
+
             BaseRequest request = connection.doReadIO();
             if (request == null) {
                 return;
@@ -125,9 +134,8 @@ public class MasterNIOServer {
             queue.offer(response);
         }
 
-        private void replyClient(SelectionKey selectionKey) {
+        private void replyClient(ClientConnection connection) {
             try {
-                ClientConnection connection = (ClientConnection) selectionKey.attachment();
                 LinkedBlockingDeque<Response> queue = responseQueues.get(connection.getConnectionId());
                 if (queue.isEmpty()) {
                     return;
@@ -139,7 +147,7 @@ public class MasterNIOServer {
 
                 SocketChannel socketChannel = connection.getSocketChannel();
                 socketChannel.write(response.getBuffer());
-
+                log.info("reply client , request type: {}, request id: {}", response.getRequestType(), response.getRequestId());
                 if (!response.getBuffer().hasRemaining()) {
                     queue.poll();
                 }
@@ -148,9 +156,8 @@ public class MasterNIOServer {
             }
         }
 
-        private void accept(SelectionKey selectionKey) throws IOException {
+        private void accept(ServerSocketChannel serverChannel) throws IOException {
             // 与客户端完成三次握手建立长连接
-            ServerSocketChannel serverChannel = (ServerSocketChannel) selectionKey.channel();
             SocketChannel socketChannel = serverChannel.accept();
 
             if (socketChannel == null) {
@@ -160,7 +167,7 @@ public class MasterNIOServer {
             socketChannel.configureBlocking(false);
 
             // 将客户端建立好的SocketChannel注册到selector
-            SelectionKey clientSelectionKey = socketChannel.register(selector, SelectionKey.OP_READ);
+            SelectionKey clientSelectionKey = socketChannel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
 
             ClientConnection clientConnection = new ClientConnection(socketChannel, clientSelectionKey);
             clientSelectionKey.attach(clientConnection);

@@ -38,7 +38,7 @@ public class MasterServer extends NodeServer {
         this.remoteNodeManager = new RemoteNodeManager();
         this.masterNetworkManager = new MasterNetworkManager(remoteNodeManager);
         this.slotManager = new SlotManager();
-        this.masterNIOServer = new MasterNIOServer(slotManager);
+        this.masterNIOServer = new MasterNIOServer(remoteNodeManager);
 //        new DetectBlockingQueueThread(masterNetworkManager).start();
     }
 
@@ -87,10 +87,6 @@ public class MasterServer extends NodeServer {
             this.controllerCandidate = new ControllerCandidate(masterNetworkManager, remoteNodeManager);
             ElectionResult electionResult = controllerCandidate.voteForControllerElection();
 
-            // update current node status
-            NodeStatusManager instance = NodeStatusManager.getInstance();
-            instance.updateStatus(electionResult);
-
             ElectionStage.setStatus(ElectionStage.ELStage.LEADING);
             int leaderId = electionResult.getControllerId();
             MasterRole masterRole = MasterRole.Candidate;
@@ -101,9 +97,14 @@ public class MasterServer extends NodeServer {
             }
             electionResult.setMasterRole(masterRole);
 
+            // update current node status
+            NodeStatusManager nodeStatusManager = NodeStatusManager.getInstance();
+            nodeStatusManager.updateStatus(electionResult, ElectionStage.ELStage.LEADING);
+
             if(masterRole == MasterRole.Controller){
                 Controller controller = new Controller(remoteNodeManager, masterNetworkManager);
-                controller.allocateSlots();
+                Map<Integer, SlotRang> integerSlotRangMap = controller.allocateSlots();
+                nodeStatusManager.setSlots(integerSlotRangMap);
             }else{
                 // 接收槽位分配
                 waitForControllerSlotResult();
@@ -114,6 +115,8 @@ public class MasterServer extends NodeServer {
         masterNetworkManager.waitSlaveNodeConnect();
 
         masterNIOServer.start();
+
+        log.info("server has started now !!!");
     }
 
     private void waitForControllerSlotResult() {

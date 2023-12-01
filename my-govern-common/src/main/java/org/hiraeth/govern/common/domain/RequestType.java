@@ -9,7 +9,7 @@ import lombok.Getter;
  */
 @Getter
 public enum RequestType {
-    FetchSlot(1);
+    FetchMetaData(1);
 
     private int value;
 

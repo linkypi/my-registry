@@ -1,14 +1,13 @@
 package com.hiraeth.govern.client;
 
-import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.common.domain.BaseResponse;
-import org.hiraeth.govern.common.domain.Request;
+import org.hiraeth.govern.common.domain.*;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -19,42 +18,52 @@ import java.util.concurrent.LinkedBlockingQueue;
  * @date: 2023/11/30 22:50
  */
 @Slf4j
-public class IOThread extends Thread{
+public class IOThread extends Thread {
 
     private Selector selector;
     private Map<String, LinkedBlockingQueue<Request>> requestQueue;
+    private ClientServer clientServer;
 
-    public IOThread(Selector selector, Map<String, LinkedBlockingQueue<Request>> requestQueue){
-        this.selector = selector;
-        this.requestQueue = requestQueue;
+    public IOThread(ClientServer clientServer) {
+        this.clientServer = clientServer;
+        this.selector = clientServer.getSelector();
+        this.requestQueue = clientServer.getRequestQueue();
     }
+
     @Override
     public void run() {
+        ServerConnection connection = null;
         while (true) {
             try {
+                int readyChannels = selector.select(300);
+//                if(readyChannels == 0){
                 Thread.sleep(500);
-                int count = selector.select(300);
-                if(count == 0){
-                    continue;
-                }
+//                    continue;
+//                }
                 Set<SelectionKey> selectionKeys = selector.selectedKeys();
                 if (selectionKeys == null || selectionKeys.size() == 0) {
                     continue;
                 }
+                Iterator<SelectionKey> iterator = selectionKeys.iterator();
+                while (iterator.hasNext()) {
+                    SelectionKey selectionKey = iterator.next();
+                    iterator.remove();
 
-                for (SelectionKey selectionKey : selectionKeys) {
                     SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
-                    ServerConnection connection = (ServerConnection)selectionKey.attachment();
+                    connection = (ServerConnection) selectionKey.attachment();
                     if ((selectionKey.readyOps() & SelectionKey.OP_WRITE) != 0) {
-                        if (selectionKey.isWritable()) {
-                            sendRequest(socketChannel, connection);
-                        }
+                        sendRequest(socketChannel, connection);
                     }
                     if ((selectionKey.readyOps() & SelectionKey.OP_READ) != 0) {
-                        if (selectionKey.isReadable()) {
-                            handleResponse(socketChannel);
-                        }
+                        handleResponse(socketChannel, connection);
                     }
+                }
+            } catch (IOException ex) {
+                // 客户端主动断开连接
+                if (connection != null) {
+                    reconnectionServer(connection);
+                } else {
+                    log.error("io exception occur.", ex);
                 }
 
             } catch (Exception ex) {
@@ -64,15 +73,46 @@ public class IOThread extends Thread{
 
     }
 
-    private void handleResponse(SocketChannel socketChannel) {
+    private static final int RETIE_TIMES = 10;
+    private void reconnectionServer(ServerConnection connection) {
+
+        clientServer.getServerConnectionManager().remove(connection);
+        int retry = 1;
+
+        while (retry <= RETIE_TIMES) {
+            try {
+                log.info("reconnection to master server, retry times {}", retry);
+                clientServer.init();
+                break;
+            } catch (Exception ex) {
+                log.error("reconnection master server failed, retry time {}", retry, ex);
+                retry++;
+            }
+        }
 
     }
 
-    private void sendRequest(SocketChannel socketChannel,ServerConnection connection) throws IOException {
+    private void handleResponse(SocketChannel socketChannel, ServerConnection connection) throws IOException {
+        BaseResponse response = connection.doReadIO();
+        if (response.getRequestType() == RequestType.FetchMetaData) {
+            FetchMetaDataResponse fetchMetaDataResponse = FetchMetaDataResponse.parseFrom(response);
+            clientServer.initMetaData(fetchMetaDataResponse);
+        }
+    }
+
+    private void sendRequest(SocketChannel socketChannel, ServerConnection connection) throws IOException {
+
+        if (connection == null) {
+            return;
+        }
+
         // 从请求队列头部获取一个请求
         LinkedBlockingQueue<Request> queue = requestQueue.get(connection.getConnectionId());
+        if (queue == null) {
+            return;
+        }
         Request request = queue.peek();
-        if(request == null){
+        if (request == null) {
             return;
         }
 
@@ -80,7 +120,7 @@ public class IOThread extends Thread{
         log.info("socket channel write {} bytes", writeLen);
 
         // 检查数据是否已经写完, 写完后移除
-        if(!request.getBuffer().hasRemaining()){
+        if (!request.getBuffer().hasRemaining()) {
             queue.poll();
             log.info("send request to server, type: {}, id: {}", request.getRequestType(), request.getRequestId());
         }

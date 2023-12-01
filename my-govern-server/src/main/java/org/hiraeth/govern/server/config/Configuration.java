@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
 import org.hiraeth.govern.server.node.entity.NodeType;
 import org.hiraeth.govern.common.util.StringUtil;
-import org.hiraeth.govern.server.node.entity.NodeAddress;
+import org.hiraeth.govern.common.domain.MasterAddress;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -50,7 +50,7 @@ public class Configuration {
 
     private String dataDir;
 
-    private Map<Integer, NodeAddress> masterNodeServers = new HashMap<>();
+    private Map<Integer, MasterAddress> masterNodeServers = new HashMap<>();
 
     private static class Singleton {
         private static Configuration instance = new Configuration();
@@ -176,8 +176,8 @@ public class Configuration {
             }
         }
         for (String item : arr) {
-            NodeAddress nodeAddress = new NodeAddress(item);
-            masterNodeServers.put(nodeAddress.getNodeId(), nodeAddress);
+            MasterAddress masterAddress = new MasterAddress(item, true);
+            masterNodeServers.put(masterAddress.getNodeId(), masterAddress);
         }
     }
 
@@ -204,7 +204,7 @@ public class Configuration {
         }
     }
 
-    public NodeAddress getCurrentNodeAddress() {
+    public MasterAddress getCurrentNodeAddress() {
         return masterNodeServers.get(nodeId);
     }
 
@@ -213,12 +213,12 @@ public class Configuration {
      *
      * @return
      */
-    public List<NodeAddress> getLowerIdMasterAddress() {
+    public List<MasterAddress> getLowerIdMasterAddress() {
         return masterNodeServers.values().stream().filter(a -> a.getNodeId() < nodeId).collect(Collectors.toList());
     }
 
     public Integer getMasterNodeIdByIpPort(String ip, int port) {
-        Optional<NodeAddress> first = masterNodeServers.values().stream()
+        Optional<MasterAddress> first = masterNodeServers.values().stream()
                 .filter(a -> (a.getHost() + a.getMasterPort()).equals(ip + port)).findFirst();
         if (first.isPresent()) {
             return first.get().getNodeId();
@@ -227,7 +227,7 @@ public class Configuration {
     }
 
     public List<Integer> getAllTheOtherNodeIds() {
-        return masterNodeServers.values().stream().map(NodeAddress::getNodeId)
+        return masterNodeServers.values().stream().map(MasterAddress::getNodeId)
                 .filter(a -> a != nodeId).collect(Collectors.toList());
     }
 }

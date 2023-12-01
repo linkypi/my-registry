@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.hiraeth.govern.common.constant.Constant.SLOTS_COUNT;
+
 /**
  * @author: lynch
  * @description:
@@ -23,7 +25,6 @@ public class SlotManager {
     /**
      * 槽位数量， 参考Redis Cluster Hash Slots实现
      */
-    private static final int SLOTS_COUNT = 16384;
     private static final String SLOTS_FILE_NAME = ".slots";
     private static final String SLOT_FILE_NAME = ".slot";
 

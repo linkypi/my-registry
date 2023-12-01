@@ -14,10 +14,10 @@ import java.nio.ByteBuffer;
  */
 @Getter
 @Setter
-public class FetchSlotsRequest extends BaseRequest {
+public class FetchMetaDataRequest extends BaseRequest {
 
-    public FetchSlotsRequest() {
-        requestType = RequestType.FetchSlot;
+    public FetchMetaDataRequest() {
+        requestType = RequestType.FetchMetaData;
         requestId = SnowFlakeIdUtil.getNextId();
     }
 
@@ -26,8 +26,8 @@ public class FetchSlotsRequest extends BaseRequest {
         return new Request(requestType, requestId, buffer);
     }
 
-    public static FetchSlotsRequest parseFrom(ByteBuffer buffer) {
+    public static FetchMetaDataRequest parseFrom(ByteBuffer buffer) {
         BaseRequest request = BaseRequest.parseFromBuffer(buffer);
-        return BeanUtil.copyProperties(request, FetchSlotsRequest.class);
+        return BeanUtil.copyProperties(request, FetchMetaDataRequest.class);
     }
 }

@@ -3,10 +3,12 @@ package org.hiraeth.govern.common;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.common.domain.BaseRequest;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+
+import static org.hiraeth.govern.common.constant.Constant.REQUEST_HEADER_LENGTH;
 
 /**
  * @author: lynch
@@ -21,57 +23,67 @@ public class MessageReader {
     // 客户端长连接
     protected SocketChannel socketChannel;
 
-    private boolean hasReadRequestLen = false;
-    private boolean hasReadRequestPayload = false;
-    private ByteBuffer requestLengthBuffer = ByteBuffer.allocate(4);
-    private ByteBuffer requestPayloadBuffer = null;
+    private boolean hasReadLen = false;
+    private boolean hasReadPayload = false;
+    private ByteBuffer lengthBuffer = ByteBuffer.allocate(4);
+    private ByteBuffer payloadBuffer = null;
 
     protected Object build(ByteBuffer buffer) {
         return null;
     }
 
-    protected Object doReadIOInternal() {
+    protected Object doReadIOInternal() throws IOException {
         try {
-            if (!hasReadRequestLen) {
-                socketChannel.read(requestLengthBuffer);
+            if (!hasReadLen) {
+                socketChannel.read(lengthBuffer);
                 // 数据没有读完, 返回继续等待
-                if (requestLengthBuffer.hasRemaining()) {
+                if (lengthBuffer.hasRemaining()) {
                     return null;
                 }
-                hasReadRequestLen = true;
+                hasReadLen = true;
             }
 
             // 请求长度读取完成, 构建请求
-            if (requestPayloadBuffer == null) {
-                requestLengthBuffer.flip();
-                int length = requestLengthBuffer.getInt();
-                requestPayloadBuffer = ByteBuffer.allocate(length);
+            if (payloadBuffer == null) {
+                lengthBuffer.flip();
+                int length = lengthBuffer.getInt();
+                // 需要减去头部4直接的长度空间
+                payloadBuffer = ByteBuffer.allocate(length - REQUEST_HEADER_LENGTH);
                 log.info("read payload to buffer, capacity: {}", length);
             }
 
-            if (!hasReadRequestPayload) {
-                socketChannel.read(requestPayloadBuffer);
+            if (!hasReadPayload) {
+                int read = socketChannel.read(payloadBuffer);
+                log.info("read payload {} bytes.", read);
+
                 // 数据没有读完, 返回继续等待
-                if (requestPayloadBuffer.hasRemaining()) {
+                if (payloadBuffer.hasRemaining()) {
                     return null;
                 }
-                hasReadRequestPayload = true;
+                hasReadPayload = true;
+
+                payloadBuffer.flip();
+                Object request = build(payloadBuffer);
+
+                reset();
+
+                return request;
             }
-
-            requestPayloadBuffer.flip();
-
-            Object request = build(requestPayloadBuffer);
-
-            requestLengthBuffer.clear();
-            requestPayloadBuffer = null;
-
-            hasReadRequestLen = false;
-            hasReadRequestPayload = false;
-            return request;
-        } catch (Exception ex) {
+        }catch (IOException ex){
+            throw ex;
+        }
+        catch (Exception ex) {
             log.error("do read IO error", ex);
         }
 
         return null;
+    }
+
+    private void reset(){
+        lengthBuffer.clear();
+        payloadBuffer = null;
+
+        hasReadLen = false;
+        hasReadPayload = false;
     }
 }

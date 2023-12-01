@@ -7,6 +7,7 @@ import org.hiraeth.govern.common.MessageReader;
 import org.hiraeth.govern.common.domain.BaseRequest;
 import org.hiraeth.govern.common.domain.BaseResponse;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -34,5 +35,9 @@ public class ServerConnection extends MessageReader {
     @Override
     protected Object build(ByteBuffer buffer) {
         return BaseResponse.parseFromBuffer(buffer);
+    }
+
+    public BaseResponse doReadIO() throws IOException {
+        return (BaseResponse)super.doReadIOInternal();
     }
 }

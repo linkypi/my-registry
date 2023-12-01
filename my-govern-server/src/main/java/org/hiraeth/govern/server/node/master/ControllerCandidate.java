@@ -70,21 +70,11 @@ public class ControllerCandidate {
         ElectionResult eleResult = startElection();
         notifyOtherCandidates(eleResult.getControllerId());
 
-        log.info("----->  await ...");
-        new Thread(()->{
-            try {
-                Thread.sleep(1000);
-                log.info("-----> count down: {}", countDownLatch.getCount());
-            }catch (Exception ex){
-
-            }
-        }).start();
         try {
             countDownLatch.await();
         } catch (Exception ex) {
             log.info("count down latch occur error", ex);
         }
-        log.info("----->  count down latch go go go !!!!");
         return electionResult;
     }
 

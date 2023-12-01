@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.node.entity;
+package org.hiraeth.govern.common.domain;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -12,7 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Getter
 @Setter
-public class NodeAddress {
+public class MasterAddress {
+
     private int nodeId;
     private String host;
     /**
@@ -28,7 +29,18 @@ public class NodeAddress {
      */
     private int externalPort;
 
-    public NodeAddress(String address) {
+    public MasterAddress(){
+    }
+
+    public MasterAddress(String address, boolean isServerAddr) {
+        if(isServerAddr) {
+            parseServerAddress(address);
+        }else{
+            parseClientAddress(address);
+        }
+    }
+
+    private void parseServerAddress(String address) {
         // 1:127.0.0.1:2156:2356:2556
         String[] arr = address.split(":");
         if (arr.length == 0) {
@@ -40,5 +52,16 @@ public class NodeAddress {
         this.masterPort = Integer.parseInt(arr[2]);
         this.slavaPort = Integer.parseInt(arr[3]);
         this.externalPort = Integer.parseInt(arr[4]);
+    }
+
+    public void parseClientAddress(String address){
+        // 127.0.0.1:2156
+        String[] arr = address.split(":");
+        if (arr.length == 0) {
+            log.warn("address is empty, cannot create master address: {}", address);
+            return;
+        }
+        this.host = arr[0];
+        this.externalPort = Integer.parseInt(arr[1]);
     }
 }

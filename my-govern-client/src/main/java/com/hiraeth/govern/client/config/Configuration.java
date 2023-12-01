@@ -1,11 +1,11 @@
 package com.hiraeth.govern.client.config;
 
 import com.beust.jcommander.Parameter;
-import com.hiraeth.govern.client.entity.MasterAddress;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
+import org.hiraeth.govern.common.domain.MasterAddress;
 import org.hiraeth.govern.common.util.StringUtil;
 import java.io.File;
 import java.io.FileInputStream;
@@ -40,6 +40,7 @@ public class Configuration {
     private int masterServerPort;
 
     private String dataDir;
+    private String serviceName;
 
     private List<MasterAddress> masterServers = new ArrayList<>();
 
@@ -68,6 +69,13 @@ public class Configuration {
                 throw new IllegalArgumentException(DATA_DIR + " cannot empty.");
             }
             this.dataDir = dir;
+
+            String serviceName = configProperties.getProperty(SERVICE_NAME);
+            if (StringUtil.isEmpty(serviceName)) {
+                throw new IllegalArgumentException(SERVICE_NAME + " cannot empty.");
+            }
+            this.serviceName = serviceName;
+
         } catch (IllegalArgumentException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);
         } catch (FileNotFoundException ex) {
@@ -75,18 +83,6 @@ public class Configuration {
         } catch (IOException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);
         }
-    }
-
-    private boolean validateNodeId(String nodeId) {
-        if (StringUtil.isEmpty(nodeId)) {
-            throw new IllegalArgumentException(NODE_ID + " cannot be empty");
-        }
-
-        boolean matches = Pattern.matches("\\d+", nodeId);
-        if (!matches) {
-            throw new IllegalArgumentException(NODE_ID + " must be a number, not string -> " + nodeId);
-        }
-        return true;
     }
 
     private Properties loadConfigFile(String file) throws ConfigurationException, IOException {
@@ -126,7 +122,7 @@ public class Configuration {
             }
         }
         for (String item : arr) {
-            MasterAddress nodeAddress = new MasterAddress(item);
+            MasterAddress nodeAddress = new MasterAddress(item, false);
             masterServers.add(nodeAddress);
         }
     }

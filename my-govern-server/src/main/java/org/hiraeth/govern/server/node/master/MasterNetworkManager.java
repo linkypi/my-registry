@@ -1,6 +1,7 @@
 package org.hiraeth.govern.server.node.master;
 
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.common.domain.MasterAddress;
 import org.hiraeth.govern.common.util.CollectionUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.NetworkManager;
@@ -10,7 +11,6 @@ import org.hiraeth.govern.server.node.NodeStatusManager;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +39,7 @@ public class MasterNetworkManager extends NetworkManager {
     /**
      * 等待重试发起连接的Master节点集合
      */
-    private CopyOnWriteArrayList<NodeAddress> retryConnectMasterNodes = new CopyOnWriteArrayList<>();
+    private CopyOnWriteArrayList<MasterAddress> retryConnectMasterNodes = new CopyOnWriteArrayList<>();
     /**
      * 与其他master节点建立好的连接
      */
@@ -73,11 +73,11 @@ public class MasterNetworkManager extends NetworkManager {
      * @return
      */
     public boolean connectLowerIdMasterNodes() {
-        List<NodeAddress> nodeAddresses = Configuration.getInstance().getLowerIdMasterAddress();
-        if (nodeAddresses == null) {
+        List<MasterAddress> masterAddresses = Configuration.getInstance().getLowerIdMasterAddress();
+        if (masterAddresses == null) {
             return true;
         }
-        for (NodeAddress item : nodeAddresses) {
+        for (MasterAddress item : masterAddresses) {
             connectMasterNode(item);
         }
         return true;
@@ -175,15 +175,15 @@ public class MasterNetworkManager extends NetworkManager {
         this.remoteMasterNodeSockets.put(remoteNodeId, socket);
     }
 
-    private boolean connectMasterNode(NodeAddress remoteNodeAddress) {
+    private boolean connectMasterNode(MasterAddress remoteMasterAddress) {
 
-        log.info("connecting lower node id master node {}:{}", remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
+        log.info("connecting lower node id master node {}:{}", remoteMasterAddress.getHost(), remoteMasterAddress.getMasterPort());
 
         boolean fatalError = false;
         int retries = 0;
         while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING && retries <= DEFAULT_RETRIES) {
             try {
-                InetSocketAddress endpoint = new InetSocketAddress(remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
+                InetSocketAddress endpoint = new InetSocketAddress(remoteMasterAddress.getHost(), remoteMasterAddress.getMasterPort());
 
                 Socket socket = new Socket();
                 socket.setTcpNoDelay(true);
@@ -205,18 +205,18 @@ public class MasterNetworkManager extends NetworkManager {
                 addRemoteMasterNode(remoteNode);
 
                 // 维护当前连接
-                addRemoteNodeSocket(remoteNodeAddress.getNodeId(), socket);
+                addRemoteNodeSocket(remoteMasterAddress.getNodeId(), socket);
 
                 // 为网络连接启动读写IO线程
-                startMasterIOThreads(remoteNodeAddress.getNodeId(), socket);
+                startMasterIOThreads(remoteMasterAddress.getNodeId(), socket);
                 return true;
             } catch (IOException ex) {
 
-                log.error("connect master node({}:{}) error", remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
+                log.error("connect master node({}:{}) error", remoteMasterAddress.getHost(), remoteMasterAddress.getMasterPort());
                 retries++;
                 if (retries <= DEFAULT_RETRIES) {
                     log.error("this is {} times retry to connect other master node({}:{}).",
-                            retries, remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
+                            retries, remoteMasterAddress.getHost(), remoteMasterAddress.getMasterPort());
                 }
             }
         }
@@ -227,10 +227,10 @@ public class MasterNetworkManager extends NetworkManager {
             return false;
         }
 
-        if (!retryConnectMasterNodes.contains(remoteNodeAddress)) {
-            retryConnectMasterNodes.add(remoteNodeAddress);
+        if (!retryConnectMasterNodes.contains(remoteMasterAddress)) {
+            retryConnectMasterNodes.add(remoteMasterAddress);
             log.warn("connect to master node({}:{}) failed, add it into retry connect master node list.",
-                    remoteNodeAddress.getHost(), remoteNodeAddress.getMasterPort());
+                    remoteMasterAddress.getHost(), remoteMasterAddress.getMasterPort());
         }
         return false;
     }
@@ -278,18 +278,18 @@ public class MasterNetworkManager extends NetworkManager {
                 }
 
                 // 重试连接, 连接成功后移除相关节点
-                List<NodeAddress> retrySuccessAddresses = new ArrayList<>();
-                for (NodeAddress nodeAddress : retryConnectMasterNodes) {
+                List<MasterAddress> retrySuccessAddresses = new ArrayList<>();
+                for (MasterAddress masterAddress : retryConnectMasterNodes) {
                     log.info("scheduled retry connect master node {}:{}.",
-                            nodeAddress.getHost(), nodeAddress.getMasterPort());
-                    if (connectMasterNode(nodeAddress)) {
+                            masterAddress.getHost(), masterAddress.getMasterPort());
+                    if (connectMasterNode(masterAddress)) {
                         log.info("scheduled retry connect master node success {}:{}.",
-                                nodeAddress.getHost(), nodeAddress.getMasterPort());
-                        retrySuccessAddresses.add(nodeAddress);
+                                masterAddress.getHost(), masterAddress.getMasterPort());
+                        retrySuccessAddresses.add(masterAddress);
                     }
                 }
 
-                for (NodeAddress address : retrySuccessAddresses) {
+                for (MasterAddress address : retrySuccessAddresses) {
                     retryConnectMasterNodes.remove(address);
                 }
             }

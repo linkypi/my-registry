@@ -28,7 +28,7 @@ public class Controller {
         this.slotManager = new SlotManager();
     }
 
-    public void allocateSlots() {
+    public Map<Integer, SlotRang> allocateSlots() {
 
         log.debug("start allocate slots...");
         List<RemoteNode> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
@@ -38,7 +38,7 @@ public class Controller {
         boolean success = slotManager.persistAllSlots(slotRangMap);
         if (!success) {
             NodeStatusManager.setFatal();
-            return;
+            return null;
         }
 
         syncSlots(slotRangMap);
@@ -52,11 +52,12 @@ public class Controller {
         success = slotManager.persistNodeSlots(slotRang);
         if (!success) {
             NodeStatusManager.setFatal();
-            return;
+            return null;
         }
 
         log.debug("persist slots success, notified other candidates, waiting for ack: {}", JSON.toJSONString(slotRangMap));
         waitForSlotResultAck(slotRangMap);
+        return slotRangMap;
     }
 
     private void waitForSlotResultAck(Map<Integer, SlotRang> slotRangMap) {

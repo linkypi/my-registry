@@ -2,6 +2,7 @@ package org.hiraeth.govern.server.node.master;
 
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.common.domain.MasterAddress;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.entity.RemoteNode;
 
@@ -9,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * 远程节点管理组件
@@ -20,6 +22,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RemoteNodeManager {
     private static final Map<Integer, RemoteNode> remoteMasterNodes = new ConcurrentHashMap<>();
     private static final Map<Integer, RemoteNode> remoteSlaveNodes = new ConcurrentHashMap<>();
+
+    public List<MasterAddress> getAllOnlineMasterAddresses(){
+        Configuration configuration = Configuration.getInstance();
+        List<MasterAddress> addresses = configuration.getMasterNodeServers().values().stream().filter(
+                (a) -> remoteMasterNodes.containsKey(a.getNodeId())).collect(Collectors.toList());
+        return addresses;
+    }
 
     public void addRemoteMasterNode(RemoteNode masterNode){
         remoteMasterNodes.put(masterNode.getNodeId(), masterNode);
