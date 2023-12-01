@@ -13,10 +13,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.Properties;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -53,7 +50,7 @@ public class Configuration {
 
     private String dataDir;
 
-    private List<NodeAddress> masterNodeServers = new ArrayList<>();
+    private Map<Integer, NodeAddress> masterNodeServers = new HashMap<>();
 
     private static class Singleton {
         private static Configuration instance = new Configuration();
@@ -179,7 +176,8 @@ public class Configuration {
             }
         }
         for (String item : arr) {
-            masterNodeServers.add(new NodeAddress(item));
+            NodeAddress nodeAddress = new NodeAddress(item);
+            masterNodeServers.put(nodeAddress.getNodeId(), nodeAddress);
         }
     }
 
@@ -207,12 +205,7 @@ public class Configuration {
     }
 
     public NodeAddress getCurrentNodeAddress() {
-        for (NodeAddress item : masterNodeServers) {
-            if (nodeId == item.getNodeId()) {
-                return item;
-            }
-        }
-        return null;
+        return masterNodeServers.get(nodeId);
     }
 
     /**
@@ -221,11 +214,11 @@ public class Configuration {
      * @return
      */
     public List<NodeAddress> getLowerIdMasterAddress() {
-        return masterNodeServers.stream().filter(a -> a.getNodeId() < nodeId).collect(Collectors.toList());
+        return masterNodeServers.values().stream().filter(a -> a.getNodeId() < nodeId).collect(Collectors.toList());
     }
 
     public Integer getMasterNodeIdByIpPort(String ip, int port) {
-        Optional<NodeAddress> first = masterNodeServers.stream()
+        Optional<NodeAddress> first = masterNodeServers.values().stream()
                 .filter(a -> (a.getHost() + a.getMasterPort()).equals(ip + port)).findFirst();
         if (first.isPresent()) {
             return first.get().getNodeId();
@@ -234,7 +227,7 @@ public class Configuration {
     }
 
     public List<Integer> getAllTheOtherNodeIds() {
-        return masterNodeServers.stream().map(NodeAddress::getNodeId)
+        return masterNodeServers.values().stream().map(NodeAddress::getNodeId)
                 .filter(a -> a != nodeId).collect(Collectors.toList());
     }
 }

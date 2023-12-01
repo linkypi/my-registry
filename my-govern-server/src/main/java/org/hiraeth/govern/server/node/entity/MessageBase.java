@@ -32,6 +32,21 @@ public class MessageBase {
 
     private ByteBuffer buffer;
 
+    public MessageBase(MessageType messageType, int controllerId, int epoch){
+
+        this.messageType = messageType;
+        this.timestamp = System.currentTimeMillis();
+        this.fromNodeId = Configuration.getInstance().getNodeId();
+        this.controllerId = controllerId;
+        this.epoch = epoch;
+        this.stage = ElectionStage.ELStage.LEADING.getValue();
+    }
+
+    public Message toMessage(){
+        ByteBuffer buffer = newBuffer(0);
+        return new Message(messageType, buffer.array());
+    }
+
     public MessageBase(){
         NodeStatusManager statusManager = NodeStatusManager.getInstance();
         this.timestamp = System.currentTimeMillis();

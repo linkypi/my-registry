@@ -8,7 +8,6 @@ import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.NodeStatusManager;
 import org.hiraeth.govern.server.node.entity.*;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -42,7 +41,7 @@ public class ControllerCandidate {
     /**
      * 投票完成后放行
      */
-    private CountDownLatch countDownLatch;
+    private CountDownLatch countDownLatch = new CountDownLatch(1);
 
     /**
      * 投票结果确认结果
@@ -53,6 +52,7 @@ public class ControllerCandidate {
                                RemoteNodeManager remoteNodeManager) {
         this.masterNetworkManager = masterNetworkManager;
         this.remoteNodeManager = remoteNodeManager;
+        new ElectionCompleteHandlerThread().start();
     }
 
     public ElectionResult voteForControllerElection() {
@@ -67,25 +67,24 @@ public class ControllerCandidate {
         int currentNodeId = configuration.getNodeId();
         this.currentVote = new Vote(1, currentNodeId);
 
-        startElection();
+        ElectionResult eleResult = startElection();
+        notifyOtherCandidates(eleResult.getControllerId());
 
-        int leaderId = electionResult.getControllerId();
-        MasterRole masterRole = MasterRole.Candidate;
-        if (currentNodeId == leaderId) {
-            masterRole = MasterRole.Controller;
-            log.info("leader start on current node, epoch {} !!!", electionResult.getEpoch());
-        }
-        electionResult.setMasterRole(masterRole);
+        log.info("----->  await ...");
+        new Thread(()->{
+            try {
+                Thread.sleep(1000);
+                log.info("-----> count down: {}", countDownLatch.getCount());
+            }catch (Exception ex){
 
-        notifyOtherCandidates(leaderId);
-
+            }
+        }).start();
         try {
             countDownLatch.await();
         } catch (Exception ex) {
             log.info("count down latch occur error", ex);
         }
-
-        log.info("decide current master node's role is {}, controller node id is {}", masterRole, leaderId);
+        log.info("----->  count down latch go go go !!!!");
         return electionResult;
     }
 
@@ -98,6 +97,7 @@ public class ControllerCandidate {
         for (RemoteNode remoteNode : otherControllerCandidates) {
             masterNetworkManager.sendRequest(remoteNode.getNodeId(), electionResult.toMessage());
         }
+        log.info("notified election result: {}", JSON.toJSONString(electionResult));
     }
 
     /**
@@ -106,7 +106,6 @@ public class ControllerCandidate {
      * @param targetId 目标controller节点
      */
     private void startNewVoteRound(Integer targetId) {
-        countDownLatch = new CountDownLatch(1);
         voteRound++;
         if (targetId != null) {
             log.info("start voting round {}, target controller id: {}.", voteRound, targetId);
@@ -143,26 +142,27 @@ public class ControllerCandidate {
      */
     private ElectionResult startElection() {
 
-        new ElectionCompleteHandlerThread().start();
-
         startNewVoteRound(null);
 
+        // 为防止无限循环 通过 ElectionStage 控制
+        // 因为很有可能当前节点因为网络问题没有收到投票, 导致在此循环等待
         while (NodeStatusManager.isRunning() && ElectionStage.getStatus() == ElectionStage.ELStage.ELECTING) {
             try {
+                Thread.sleep(300);
                 if (masterNetworkManager.countResponseMessage(MessageType.Vote) > 0) {
-                    MessageBase messageBase = (MessageBase)masterNetworkManager.takeResponseMessage(MessageType.Vote);
+                    MessageBase messageBase = masterNetworkManager.takeResponseMessage(MessageType.Vote);
                     Vote vote = Vote.parseFrom(messageBase);
                     Integer leaderId = handleVoteResponse(vote);
                     if (leaderId != null) {
                         electionResult = ElectionResult.newCandidateResult(leaderId, voteRound);
-                        return electionResult;
+                        break;
                     }
                 }
             } catch (Exception ex) {
                 log.info("handle election message failed", ex);
             }
         }
-        return null;
+        return electionResult;
     }
 
     class ElectionCompleteHandlerThread extends Thread {
@@ -175,11 +175,19 @@ public class ControllerCandidate {
             try {
                 while (NodeStatusManager.isRunning()) {
                     if (masterNetworkManager.countResponseMessage(MessageType.ElectionComplete) > 0) {
-                        if (handleElectionResult()) break;
+                        handleElectionResult();
                     }
 
                     if (masterNetworkManager.countResponseMessage(MessageType.ElectionCompleteAck) > 0) {
-                        if (ackElectionResult()) break;
+                        if(ackElectionResult()){
+                            break;
+                        }
+                    }
+
+                    if (masterNetworkManager.countResponseMessage(MessageType.Leading) > 0) {
+                        if(handleLeadingResult()){
+                            break;
+                        }
                     }
 
                     Thread.sleep(1000L);
@@ -189,19 +197,23 @@ public class ControllerCandidate {
             }
         }
 
+        private boolean handleLeadingResult() {
+            MessageBase messageBase = masterNetworkManager.takeResponseMessage(MessageType.Leading);
+            log.info("receive Leading message !!! {}", JSON.toJSONString(messageBase));
+            if (electionResult != null && electionResult.getControllerId() != messageBase.getControllerId()) {
+                log.error("receive Leading message, but the controller id is not the same, current election result: {}, " +
+                        "remote election result: {}", JSON.toJSONString(electionResult), JSON.toJSONString(messageBase));
+            }
+            finishedVoting();
+            return true;
+        }
+
         private boolean handleElectionResult() {
             MessageBase messageBase = masterNetworkManager.takeResponseMessage(MessageType.ElectionComplete);
             ElectionResult remoteEleResult = ElectionResult.parseFrom(messageBase);
             log.info("election result notification: {}. ", JSON.toJSONString(remoteEleResult));
 
             int currentNoteId = Configuration.getInstance().getNodeId();
-            if (ElectionStage.ELStage.LEADING.getValue() == remoteEleResult.getStage()) {
-                // 选举完成
-                log.info("election has finished, the controller id is {}, current master node is follower.", remoteEleResult.getControllerId());
-                finishedVoting();
-                return true;
-            }
-
             // 当前机器没有投票结果, 可直接接收远程投票结果
             if (electionResult == null) {
                 replyAcceptResult(remoteEleResult.getFromNodeId(), remoteEleResult);
@@ -243,24 +255,23 @@ public class ControllerCandidate {
                 int epoch = remoteResultAck.getEpoch();
                 replyAcceptResult(remoteResultAck.getFromNodeId(), ElectionResult.newCandidateResult(controllerId, epoch));
             }
-            // 选举结束, 进入领导阶段
-            if (confirmList.size() >= remoteNodeManager.getQuorum()) {
+            // 大多数节点已确认选举结果, 进入领导阶段
+            int nodeId = Configuration.getInstance().getNodeId();
+            if (nodeId == electionResult.getControllerId() && confirmList.size() >= remoteNodeManager.getQuorum()) {
                 log.info("quorum master nodes has confirmed current election result: {}.", JSON.toJSONString(electionResult));
-                ElectionStage.setStatus(ElectionStage.ELStage.LEADING);
 
-                // 昭告天下, 全国已确认解放, 朕已登记
+                // 昭告天下, 全国已确认解放, 朕已登基
                 int controllerId = remoteResultAck.getControllerId();
                 int epoch = remoteResultAck.getEpoch();
-                ElectionResult result = ElectionResult.newLeadingResult(controllerId, epoch);
-                for (RemoteNode remoteNode : remoteNodeManager.getOtherControllerCandidates()) {
-                    masterNetworkManager.sendRequest(remoteNode.getNodeId(), result.toMessage());
-                }
 
-                log.info("election has finished, controller id {} is elected !!!", electionResult.getControllerId());
+                MessageBase message = new MessageBase(MessageType.Leading, controllerId, epoch);
+
+                for (RemoteNode remoteNode : remoteNodeManager.getOtherControllerCandidates()) {
+                    masterNetworkManager.sendRequest(remoteNode.getNodeId(), message.toMessage());
+                }
+                log.info("election has finished, all the other master nodes has been notified.");
 
                 finishedVoting();
-
-                log.info("election has finished, all the other master nodes has been notified .");
                 return true;
             }
             return false;
@@ -299,6 +310,9 @@ public class ControllerCandidate {
             votes.clear();
             confirmList.clear();
             countDownLatch.countDown();
+            // 必须设置 Leading 状态, 因为存在 while 循环 会导致某些环节无法继续
+            ElectionStage.setStatus(ElectionStage.ELStage.LEADING);
+            log.info("election has finished, controller id {} is elected !!!", electionResult.getControllerId());
         }
     }
 
@@ -330,8 +344,7 @@ public class ControllerCandidate {
             // 已经选出controller
             if (controllerNodeId != null) {
                 if (votes.size() == totalCandidates) {
-                    log.info("candidate controller node id: {} !!! received all votes: {}",
-                            controllerNodeId, JSON.toJSONString(votes));
+                    log.info("candidate controller node id: {} !!! ", controllerNodeId);
                     return controllerNodeId;
                 }
                 log.info("candidate controller node id: {}, waiting for all votes received: {}.",

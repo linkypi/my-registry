@@ -7,8 +7,8 @@ import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.config.ConfigurationException;
 import org.hiraeth.govern.server.node.entity.NodeStatus;
 import org.hiraeth.govern.server.node.NodeStatusManager;
-import org.hiraeth.govern.server.node.server.MasterNodeServer;
-import org.hiraeth.govern.server.node.server.SlaveNodeServer;
+import org.hiraeth.govern.server.node.server.MasterServer;
+import org.hiraeth.govern.server.node.server.SlaveServer;
 
 /**
  * 服务治理平台 Server 端
@@ -55,9 +55,9 @@ public class GovernServer {
 
     private static void startNodeServer(Configuration configuration) {
         if(configuration.getNodeType() == NodeType.Master){
-            new MasterNodeServer().start();
+            new MasterServer().start();
         }else{
-            new SlaveNodeServer().start();
+            new SlaveServer().start();
         }
     }
 

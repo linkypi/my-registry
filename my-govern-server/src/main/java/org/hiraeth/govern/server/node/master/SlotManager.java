@@ -5,7 +5,7 @@ import org.hiraeth.govern.common.util.FileUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.entity.RemoteNode;
 import org.hiraeth.govern.server.node.entity.Slot;
-import org.hiraeth.govern.server.node.entity.SlotRang;
+import org.hiraeth.govern.common.domain.SlotRang;
 
 import java.util.List;
 import java.util.Map;
@@ -50,7 +50,7 @@ public class SlotManager {
             index += slotsPerNode;
         }
         int nodeId = Configuration.getInstance().getNodeId();
-        slotsAllocation.put(nodeId, new SlotRang(index, controllerSlotsCount - 1));
+        slotsAllocation.put(nodeId, new SlotRang(index, index + controllerSlotsCount - 1));
         return slotsAllocation;
     }
 

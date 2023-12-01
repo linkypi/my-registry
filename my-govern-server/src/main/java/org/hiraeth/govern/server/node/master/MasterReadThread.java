@@ -50,28 +50,23 @@ public class MasterReadThread extends Thread{
                 byte[] bytes = new byte[length];
                 inputStream.readFully(bytes, 0, length);
 
-                // 将字节数组封装成 byteBuffer
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
-//                int messageType = buffer.getInt();
                 MessageBase messageBase = MessageBase.parseFromBuffer(buffer);
                 int msgType = messageBase.getMessageType().getValue();
 
-                if (!receiveQueue.containsKey(msgType)) {
-                    receiveQueue.put(msgType, new LinkedBlockingQueue<>());
-                }
                 receiveQueue.get(msgType).add(messageBase);
 
                 MessageType msgTypeEnum = messageBase.getMessageType();
-                log.info("get message from remote node: {}, message type: {}, message size: {} bytes",
-                        socket.getRemoteSocketAddress(), msgTypeEnum.name(), buffer.capacity());
+//                log.info("get message from remote node: {}, message type: {}, message size: {} bytes",
+//                        socket.getRemoteSocketAddress(), msgTypeEnum.name(), buffer.capacity());
             } catch (IOException ex) {
                 log.error("read message from remote node failed.", ex);
                 NodeStatusManager.setFatal();
             }
         }
 
-        if (NodeStatusManager.isFatal()) {
-            log.error("read io thread encounters fatal exception, system is going to shutdown.");
-        }
+//        if (NodeStatusManager.isFatal()) {
+//            log.error("read io thread encounters fatal exception, system is going to shutdown.");
+//        }
     }
 }

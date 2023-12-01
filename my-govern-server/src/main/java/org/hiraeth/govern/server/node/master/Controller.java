@@ -2,6 +2,7 @@ package org.hiraeth.govern.server.node.master;
 
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.common.domain.SlotRang;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.NodeStatusManager;
 import org.hiraeth.govern.server.node.entity.*;
@@ -29,6 +30,7 @@ public class Controller {
 
     public void allocateSlots() {
 
+        log.debug("start allocate slots...");
         List<RemoteNode> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
         Map<Integer, SlotRang> slotRangMap = slotManager.calculateSlots(otherControllerCandidates);
 
@@ -54,22 +56,32 @@ public class Controller {
         }
 
         log.debug("persist slots success, notified other candidates, waiting for ack: {}", JSON.toJSONString(slotRangMap));
-        waitForSlotResultAck();
+        waitForSlotResultAck(slotRangMap);
     }
 
-    private void waitForSlotResultAck() {
+    private void waitForSlotResultAck(Map<Integer, SlotRang> slotRangMap) {
         try {
             Set<Integer> confirmSet = new HashSet<>();
             while (NodeStatusManager.isRunning()) {
-//                if (masterNetworkManager.countResponseMessage(MessageType.AllocateSlotsAck) == 0) {
-//                    Thread.sleep(500);
-//                    continue;
-//                }
+                if (masterNetworkManager.countResponseMessage(MessageType.AllocateSlotsAck) == 0) {
+                    Thread.sleep(500);
+                    continue;
+                }
+
                 MessageBase message = masterNetworkManager.takeResponseMessage(MessageType.AllocateSlotsAck);
                 SlotAllocateResultAck ackResult = SlotAllocateResultAck.parseFrom(message);
                 confirmSet.add(ackResult.getFromNodeId());
+                log.info("receive AllocateSlotsAck, confirm size {}", confirmSet.size());
+
                 if (confirmSet.size() >= remoteNodeManager.getQuorum()) {
                     log.info("all the other candidates has confirmed the slots allocation.");
+
+                    // 发送向各个follower发送确认结果, follower 收到确认结果后才会执行下一步操作
+                    SlotAllocateResultConfirm confirmMessage= new SlotAllocateResultConfirm(slotRangMap);
+                    for (RemoteNode remoteNode : remoteNodeManager.getOtherControllerCandidates()) {
+                        masterNetworkManager.sendRequest(remoteNode.getNodeId(), confirmMessage.toMessage());
+                        log.info("send slot allocation confirm to remote node {}.", remoteNode.getNodeId());
+                    }
                     break;
                 }
             }

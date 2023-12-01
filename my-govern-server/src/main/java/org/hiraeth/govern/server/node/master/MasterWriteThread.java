@@ -52,8 +52,8 @@ public class MasterWriteThread extends Thread{
                 outputStream.write(buffer);
                 outputStream.flush();
 
-                log.info("send message to remote node: {}, message type: {}, message size : {} bytes.",
-                        socket.getRemoteSocketAddress(), message.getMessageType().name(), buffer.length);
+//                log.info("send message to remote node: {}, message type: {}, message size : {} bytes.",
+//                        socket.getRemoteSocketAddress(), message.getMessageType().name(), buffer.length);
             }catch (InterruptedException ex){
                 log.error("get message from send queue failed.", ex);
                 NodeStatusManager.setFatal();

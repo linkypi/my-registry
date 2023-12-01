@@ -5,7 +5,7 @@ import lombok.Setter;
 import org.hiraeth.govern.server.node.entity.ElectionResult;
 import org.hiraeth.govern.server.node.entity.MasterRole;
 import org.hiraeth.govern.server.node.entity.NodeStatus;
-import org.hiraeth.govern.server.node.entity.SlotRang;
+import org.hiraeth.govern.common.domain.SlotRang;
 import org.hiraeth.govern.server.node.master.ElectionStage;
 
 import java.util.Map;

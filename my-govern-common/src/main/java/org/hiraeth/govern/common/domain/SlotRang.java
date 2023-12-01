@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.node.entity;
+package org.hiraeth.govern.common.domain;
 
 import lombok.Getter;
 import lombok.Setter;

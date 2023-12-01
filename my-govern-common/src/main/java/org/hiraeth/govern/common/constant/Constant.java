@@ -14,4 +14,7 @@ public class Constant {
     public static final String MASTER_NODE_ADDRESS = "master.node.address";
     public static final String MASTER_NODE_PORT = "master.node.port";
     public static final String DATA_DIR = "data.dir";
+
+    public static final String GOVERN_SERVERS = "govern.servers";
+    public static final String x = "";
 }

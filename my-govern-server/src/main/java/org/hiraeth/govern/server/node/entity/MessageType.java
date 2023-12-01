@@ -19,14 +19,18 @@ public enum MessageType {
      */
     Vote(2),
 
-    /**
-     * leader已选举完成
-     */
+    // leader已选举完成, 待确认
     ElectionComplete(3),
+    // 对方已确认选举结果
     ElectionCompleteAck(4),
+    // 选举结果已得到多数人确认, 新领导开始上任
+    Leading(5),
     // 槽位分配
-    AllocateSlots(5),
-    AllocateSlotsAck(6)
+    AllocateSlots(6),
+    // 通知leader, 当前 follower 已收到槽位分配结果
+    AllocateSlotsAck(7),
+    // 向所有leader通知: 大多数 follower 已确认当前槽位分配
+    AllocateSlotsConfirm(8)
     ;
     MessageType(int value){
         this.value = value;
