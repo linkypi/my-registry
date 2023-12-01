@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
-import org.hiraeth.govern.common.domain.MasterAddress;
+import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.common.util.StringUtil;
 import java.io.File;
 import java.io.FileInputStream;
@@ -42,7 +42,7 @@ public class Configuration {
     private String dataDir;
     private String serviceName;
 
-    private List<MasterAddress> masterServers = new ArrayList<>();
+    private List<ServerAddress> serversAddresses = new ArrayList<>();
 
     private static class Singleton {
         private static Configuration instance = new Configuration();
@@ -122,8 +122,8 @@ public class Configuration {
             }
         }
         for (String item : arr) {
-            MasterAddress nodeAddress = new MasterAddress(item, false);
-            masterServers.add(nodeAddress);
+            ServerAddress nodeAddress = new ServerAddress(item);
+            serversAddresses.add(nodeAddress);
         }
     }
 

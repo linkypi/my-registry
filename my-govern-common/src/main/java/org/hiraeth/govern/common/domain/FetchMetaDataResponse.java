@@ -20,8 +20,8 @@ import java.util.Map;
 @Setter
 public class FetchMetaDataResponse extends BaseResponse {
 
-    private Map<Integer, SlotRang> slots;
-    private List<MasterAddress> masterAddresses;
+    private Map<String, SlotRang> slots;
+    private List<ServerAddress> serverAddresses;
 
     public FetchMetaDataResponse() {
         timestamp = System.currentTimeMillis();
@@ -30,7 +30,7 @@ public class FetchMetaDataResponse extends BaseResponse {
 
     public Response toResponse() {
         byte[] bytes = JSON.toJSONString(slots).getBytes();
-        byte[] addresses = JSON.toJSONString(masterAddresses).getBytes();
+        byte[] addresses = JSON.toJSONString(serverAddresses).getBytes();
         // 仍需加上8字节长度， 因为每个属性有4个字节数据长度
         toBuffer(bytes.length + addresses.length + 8);
         return new Response(requestType, requestId, buffer);
@@ -44,7 +44,7 @@ public class FetchMetaDataResponse extends BaseResponse {
         buffer.put(bytes);
 
         // 写入 master addresses
-        byte[] addresses = JSON.toJSONString(masterAddresses).getBytes();
+        byte[] addresses = JSON.toJSONString(serverAddresses).getBytes();
         buffer.putInt(addresses.length);
         buffer.put(addresses);
     }
@@ -59,9 +59,9 @@ public class FetchMetaDataResponse extends BaseResponse {
         buffer.get(bytes);
         String json = new String(bytes);
 
-        Map<Integer, SlotRang> slotRangMap = new HashMap<>();
-        Map<Integer, JSONObject> sourceMap = (Map) JSON.parse(json);
-        for (Integer item : sourceMap.keySet()) {
+        Map<String, SlotRang> slotRangMap = new HashMap<>();
+        Map<String, JSONObject> sourceMap = (Map) JSON.parse(json);
+        for (String item : sourceMap.keySet()) {
             JSONObject jsonObject = sourceMap.get(item);
             SlotRang slotRang = new SlotRang(jsonObject.getIntValue("start"), jsonObject.getIntValue("end"));
             slotRangMap.put(item, slotRang);
@@ -75,8 +75,8 @@ public class FetchMetaDataResponse extends BaseResponse {
         byte[] addrBytes = new byte[addrLength];
         buffer.get(addrBytes);
         String addrJson = new String(addrBytes);
-        List<MasterAddress> addressList = JSON.parseArray(addrJson, MasterAddress.class);
-        response.setMasterAddresses(addressList);
+        List<ServerAddress> addressList = JSON.parseArray(addrJson, ServerAddress.class);
+        response.setServerAddresses(addressList);
         return response;
     }
 }

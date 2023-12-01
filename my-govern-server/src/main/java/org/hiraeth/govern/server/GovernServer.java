@@ -2,13 +2,10 @@ package org.hiraeth.govern.server;
 
 import com.beust.jcommander.JCommander;
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.server.node.entity.NodeType;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.config.ConfigurationException;
-import org.hiraeth.govern.server.node.entity.NodeStatus;
-import org.hiraeth.govern.server.node.NodeStatusManager;
-import org.hiraeth.govern.server.node.server.MasterServer;
-import org.hiraeth.govern.server.node.server.SlaveServer;
+import org.hiraeth.govern.server.entity.NodeStatus;
+import org.hiraeth.govern.server.core.NodeStatusManager;
 
 /**
  * 服务治理平台 Server 端
@@ -36,7 +33,7 @@ public class GovernServer {
 
             NodeStatusManager.setNodeStatus(NodeStatus.RUNNING);
 
-            startNodeServer(configuration);
+            startNodeServer();
 
         } catch (ConfigurationException ex) {
             log.error("configuration exception", ex);
@@ -53,12 +50,8 @@ public class GovernServer {
         }
     }
 
-    private static void startNodeServer(Configuration configuration) {
-        if(configuration.getNodeType() == NodeType.Master){
-            new MasterServer().start();
-        }else{
-            new SlaveServer().start();
-        }
+    private static void startNodeServer() {
+        new MicroServer().start();
     }
 
     private void waitForShutdown() throws InterruptedException {

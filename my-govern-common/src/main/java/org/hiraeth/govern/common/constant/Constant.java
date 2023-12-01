@@ -10,14 +10,22 @@ public class Constant {
 
     public static final int SLOTS_COUNT = 16384;
 
-    public static final String NODE_TYPE = "node.type";
-    public static final String NODE_ID = "node.id";
-    public static final String IS_CONTROLLER_CANDIDATE = "controller.candidate";
-    public static final String MASTER_NODE_SERVERS = "master.node.servers";
-    public static final String MASTER_NODE_ADDRESS = "master.node.address";
-    public static final String MASTER_NODE_PORT = "master.node.port";
-    public static final String DATA_DIR = "data.dir";
+    public static final String IS_CONTROLLER_CANDIDATE = "is.controller.candidate";
+    public static final String CONTROLLER_CANDIDATE_SERVERS = "controller.candidate.servers";
 
+    public static final String DATA_DIR = "data.dir";
+    public static final String LOG_DIR = "log.dir";
+    public static final String CLUSTER_NODE_COUNT = "cluster.node.count";
+
+    // 普通股master配置参数
+    public static final String NODE_IP = "node.ip";
+    // 普通股master内部通信端口
+    public static final String NODE_INTERNAL_PORT = "node.internal.port";
+    // 普通股master与客户端通信的端口
+    public static final String NODE_CLIENT_HTTP_PORT = "node.client.http.port";
+    public static final String NODE_CLIENT_TCP_PORT = "node.client.tcp.port";
+
+    // 客户端配置
     public static final String GOVERN_SERVERS = "govern.servers";
     public static final String SERVICE_NAME = "service.name";
 

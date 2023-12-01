@@ -38,8 +38,8 @@ public class ClientServer {
     private ConcurrentHashMap<Long, BaseResponse> responses = new ConcurrentHashMap<>();
 
     private ServerConnectionManager serverConnectionManager;
-    private Map<Integer, SlotRang> slotsMap;
-    private List<MasterAddress> masterAddresses;
+    private Map<String, SlotRang> slotsMap;
+    private List<ServerAddress> serverAddresses;
     private CountDownLatch fetchMataDataLatch = new CountDownLatch(1);
 
     public ClientServer() {
@@ -60,35 +60,35 @@ public class ClientServer {
      * 发送请求到controller候选节点获取slots数据
      */
     public void init() throws IOException {
-        MasterAddress masterAddress = chooseMasterServer();
-        String connectionId = connectServer(masterAddress);
+        ServerAddress serverAddress = chooseServer();
+        String connectionId = connectServer(serverAddress);
         fetchMetaDataFromServer(connectionId);
 
         register();
     }
 
     /**
-     * 根据服务名称路由到一个slot槽位, 找到slot槽位所在master节点
-     * 跟指定master节点建立长连接, 然后发送请求到master节点进行服务注册
+     * 根据服务名称路由到一个slot槽位, 找到slot槽位所在服务器节点
+     * 跟指定服务器节点建立长连接, 然后发送请求到服务器节点进行服务注册
      */
     public void register() {
         int slot = routeSlot();
-        Integer masterNodeId = locateMasterNodeBySlot(slot);
-        if (masterNodeId == null) {
-            log.error("cannot register service to remote master, because the master node id is null.");
+        String serverNodeId = locateServerNodeBySlot(slot);
+        if (serverNodeId == null) {
+            log.error("cannot register service to remote server, because the server node id is null.");
             return;
         }
 
-        Optional<MasterAddress> first = masterAddresses.stream().filter(a -> a.getNodeId() == masterNodeId).findFirst();
+        Optional<ServerAddress> first = serverAddresses.stream().filter(a -> a.getNodeId() == serverNodeId).findFirst();
         if (!first.isPresent()) {
-            log.error("cannot register service to remote master, because the master address not found, " +
-                    "route node id: {}, master addresses: {}", masterNodeId, JSON.toJSONString(masterAddresses));
+            log.error("cannot register service to remote server, because the server address not found, " +
+                    "route node id: {}, server addresses: {}", serverNodeId, JSON.toJSONString(serverAddresses));
             return;
         }
-        MasterAddress masterAddress = first.get();
+        ServerAddress serverAddress = first.get();
 
         String serviceName = Configuration.getInstance().getServiceName();
-        log.info("register service {} to master node {}.", serviceName, masterAddress.getNodeId());
+        log.info("register service {} to server node {}.", serviceName, serverAddress.getNodeId());
 
     }
 
@@ -96,8 +96,8 @@ public class ClientServer {
 
     }
 
-    private Integer locateMasterNodeBySlot(int slot) {
-        for (Integer nodeId : slotsMap.keySet()) {
+    private String locateServerNodeBySlot(int slot) {
+        for (String nodeId : slotsMap.keySet()) {
             SlotRang slotRang = slotsMap.get(nodeId);
             if (slot >= slotRang.getStart() && slot <= slotRang.getEnd()) {
                 return nodeId;
@@ -115,8 +115,8 @@ public class ClientServer {
 
     public void initMetaData(FetchMetaDataResponse response){
         this.slotsMap = response.getSlots();
-        this.masterAddresses = response.getMasterAddresses();
-        log.info("init master meta data success.");
+        this.serverAddresses = response.getServerAddresses();
+        log.info("init server meta data success.");
         fetchMataDataLatch.countDown();
     }
 
@@ -129,11 +129,11 @@ public class ClientServer {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-        log.info("receive slots from master server success: {}", JSON.toJSONString(slotsMap));
+        log.info("receive slots from server success: {}", JSON.toJSONString(slotsMap));
     }
 
-    private String connectServer(MasterAddress address) throws IOException {
-        InetSocketAddress inetSocketAddress = new InetSocketAddress(address.getHost(), address.getExternalPort());
+    private String connectServer(ServerAddress address) throws IOException {
+        InetSocketAddress inetSocketAddress = new InetSocketAddress(address.getHost(), address.getClientTcpPort());
         SocketChannel channel = SocketChannel.open();
         channel.configureBlocking(false);
         channel.socket().setSoLinger(false, -1);
@@ -180,13 +180,13 @@ public class ClientServer {
 
     private static final Random random = new Random();
 
-    private MasterAddress chooseMasterServer() {
+    private ServerAddress chooseServer() {
         Configuration configuration = Configuration.getInstance();
-        List<MasterAddress> masterServers = configuration.getMasterServers();
-        int index = random.nextInt(masterServers.size());
-        MasterAddress masterAddress = masterServers.get(index);
-        log.info("choose master server: {}", masterAddress);
-        return masterAddress;
+        List<ServerAddress> servers = configuration.getServersAddresses();
+        int index = random.nextInt(servers.size());
+        ServerAddress serverAddress = servers.get(index);
+        log.info("choose server: {}", serverAddress);
+        return serverAddress;
     }
 
 }

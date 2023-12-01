@@ -81,11 +81,11 @@ public class IOThread extends Thread {
 
         while (retry <= RETIE_TIMES) {
             try {
-                log.info("reconnection to master server, retry times {}", retry);
+                log.info("reconnection to remote server, retry times {}", retry);
                 clientServer.init();
                 break;
             } catch (Exception ex) {
-                log.error("reconnection master server failed, retry time {}", retry, ex);
+                log.error("reconnection remote server failed, retry time {}", retry, ex);
                 retry++;
             }
         }

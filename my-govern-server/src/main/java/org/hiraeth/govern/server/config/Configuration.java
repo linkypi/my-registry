@@ -5,9 +5,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
-import org.hiraeth.govern.server.node.entity.NodeType;
 import org.hiraeth.govern.common.util.StringUtil;
-import org.hiraeth.govern.common.domain.MasterAddress;
+import org.hiraeth.govern.common.domain.ServerAddress;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -37,11 +36,6 @@ public class Configuration {
             " ex: /path/to/config.properties, /path/to/config.cnf...")
     private String configPath;
 
-    /**
-     * 节点类型: master / slave
-     */
-    private NodeType nodeType;
-    private int nodeId;
     private boolean isControllerCandidate;
 
     // slave 节点参数
@@ -49,8 +43,14 @@ public class Configuration {
     private int masterServerPort;
 
     private String dataDir;
+    private String logDir;
+    private String nodeIP;
+    private int nodeInternalPort;
+    private int nodeClientHttpPort;
+    private int nodeClientTcpPort;
+    private int clusterNodeCount;
 
-    private Map<Integer, MasterAddress> masterNodeServers = new HashMap<>();
+    private Map<String, ServerAddress> controllerServers = new HashMap<>();
 
     private static class Singleton {
         private static Configuration instance = new Configuration();
@@ -62,26 +62,14 @@ public class Configuration {
 
     /**
      * for example:
-     * 1:192.168.10.100:2156:2356:2556
+     * 192.168.10.100:2156,192.168.10.110:2156
      */
-    private static Pattern CLUSTER_REGEX_COMPILE = Pattern.compile("(\\d+):(\\d+\\.\\d+\\.\\d+\\.\\d+):(\\d+):(\\d+):(\\d+)");
+    private static Pattern CLUSTER_REGEX_COMPILE = Pattern.compile("(\\d+\\.\\d+\\.\\d+\\.\\d+):(\\d+)");
     private static Pattern IP_REGEX_COMPILE = Pattern.compile("\\d+\\.\\d+\\.\\d+\\.\\d+");
 
     public void parse() throws Exception {
         try {
             Properties configProperties = loadConfigFile();
-
-            // 解析 node.type
-            String nodeType = configProperties.getProperty(NODE_TYPE);
-            if (StringUtil.isEmpty(nodeType)) {
-                throw new IllegalArgumentException("node.type cannot be empty.");
-            }
-            NodeType nodeTypeEnum = NodeType.of(nodeType);
-            if (nodeTypeEnum == null) {
-                throw new IllegalArgumentException("node.type must be master or slave.");
-            }
-            log.debug("parameter {} = {}", NODE_TYPE, nodeType);
-            this.nodeType = nodeTypeEnum;
 
             // 解析 controller.candidate
             String isControllerCandidateStr = configProperties.getProperty(IS_CONTROLLER_CANDIDATE);
@@ -89,24 +77,38 @@ public class Configuration {
             this.isControllerCandidate = Boolean.parseBoolean(isControllerCandidateStr);
             log.debug("parameter {} = {}", IS_CONTROLLER_CANDIDATE, isControllerCandidateStr);
 
-            // 解析 node.id
-            String nodeIdStr = configProperties.getProperty(NODE_ID);
-            if (validateNodeId(nodeIdStr)) {
-                this.nodeId = Integer.parseInt(nodeIdStr);
-            }
-            log.debug("parameter {} = {}", NODE_ID, nodeIdStr);
-
-            if (this.nodeType == NodeType.Master) {
-                parseMasterNodeServer(configProperties);
-            } else {
-                parseSlaveNodeConfig(configProperties);
-            }
+            parseControllerServers(configProperties);
 
             String dir = configProperties.getProperty(DATA_DIR);
             if (StringUtil.isEmpty(dir)) {
                 throw new IllegalArgumentException(DATA_DIR + " cannot empty.");
             }
             this.dataDir = dir;
+            log.debug("parameter {} = {}", DATA_DIR, dir);
+
+            String logDir = configProperties.getProperty(LOG_DIR);
+            if (StringUtil.isEmpty(logDir)) {
+                throw new IllegalArgumentException(LOG_DIR + " cannot empty.");
+            }
+            this.logDir = logDir;
+            log.debug("parameter {} = {}", LOG_DIR, logDir);
+
+            this.nodeIP = parseNodeIP(configProperties);
+
+            this.nodeInternalPort = parseInt(configProperties, NODE_INTERNAL_PORT);
+            this.nodeClientHttpPort = parseInt(configProperties, NODE_CLIENT_HTTP_PORT);
+            this.nodeClientTcpPort = parseInt(configProperties, NODE_CLIENT_TCP_PORT);
+            this.clusterNodeCount = parseInt(configProperties, CLUSTER_NODE_COUNT);
+
+            for (String key : controllerServers.keySet()) {
+                ServerAddress address = controllerServers.get(key);
+                if (key.equals(nodeIP + ":" + nodeInternalPort)) {
+                    address.setHost(nodeIP);
+                    address.setClientTcpPort(nodeClientTcpPort);
+                    address.setClientHttpPort(nodeClientHttpPort);
+                }
+            }
+
         } catch (IllegalArgumentException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);
         } catch (FileNotFoundException ex) {
@@ -114,6 +116,35 @@ public class Configuration {
         } catch (IOException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);
         }
+    }
+
+    private static String parseNodeIP(Properties configProperties) {
+        String nodeIp = configProperties.getProperty(NODE_IP);
+        if (StringUtil.isEmpty(nodeIp)) {
+            throw new IllegalArgumentException(NODE_IP + " cannot empty.");
+        }
+        Matcher matcher = IP_REGEX_COMPILE.matcher(nodeIp);
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException(Constant.NODE_IP + " parameters " + nodeIp + " is invalid.");
+        }
+        return nodeIp;
+    }
+
+    private int parseInt(Properties configProperties, String arg){
+        String value = "";
+        int intValue = 0;
+        try {
+            value = configProperties.getProperty(arg);
+            if (StringUtil.isEmpty(value)) {
+                throw new IllegalArgumentException(arg + " cannot empty.");
+            }
+
+            intValue = Integer.parseInt(value);
+        }catch (Exception ex){
+            throw new IllegalArgumentException( "parameter " + arg +" is invalid "+ value);
+        }
+        log.debug("parameter {} = {}", arg, intValue);
+        return intValue;
     }
 
     private boolean validateIsControllerCandidate(String isControllerCandidate) {
@@ -125,18 +156,6 @@ public class Configuration {
             return true;
         }
         throw new IllegalArgumentException("controller.candidate must be true or false, not "+ isControllerCandidate);
-    }
-
-    private boolean validateNodeId(String nodeId) {
-        if (StringUtil.isEmpty(nodeId)) {
-            throw new IllegalArgumentException(NODE_ID + " cannot be empty");
-        }
-
-        boolean matches = Pattern.matches("\\d+", nodeId);
-        if (!matches) {
-            throw new IllegalArgumentException(NODE_ID + " must be a number, not string -> " + nodeId);
-        }
-        return true;
     }
 
     private Properties loadConfigFile() throws ConfigurationException, IOException {
@@ -160,74 +179,81 @@ public class Configuration {
         return configProperties;
     }
 
-    private void parseMasterNodeServer(Properties configProperties) {
-        String nodeServers = configProperties.getProperty(Constant.MASTER_NODE_SERVERS);
+    private void parseControllerServers(Properties configProperties) {
+        String nodeServers = configProperties.getProperty(Constant.CONTROLLER_CANDIDATE_SERVERS);
         if (StringUtil.isEmpty(nodeServers)) {
-            throw new IllegalArgumentException(Constant.MASTER_NODE_SERVERS + " cannot be empty.");
+            throw new IllegalArgumentException(Constant.CONTROLLER_CANDIDATE_SERVERS + " cannot be empty.");
         }
         String[] arr = nodeServers.split(",");
         if (arr.length == 0) {
-            throw new IllegalArgumentException(Constant.MASTER_NODE_SERVERS + " cannot be empty.");
+            throw new IllegalArgumentException(Constant.CONTROLLER_CANDIDATE_SERVERS + " cannot be empty.");
         }
         for (String item : arr) {
             Matcher matcher = CLUSTER_REGEX_COMPILE.matcher(item);
             if (!matcher.matches()) {
-                throw new IllegalArgumentException(Constant.MASTER_NODE_SERVERS + " parameters " + item + " is invalid.");
+                throw new IllegalArgumentException(Constant.CONTROLLER_CANDIDATE_SERVERS + " parameters " + item + " is invalid.");
             }
         }
         for (String item : arr) {
-            MasterAddress masterAddress = new MasterAddress(item, true);
-            masterNodeServers.put(masterAddress.getNodeId(), masterAddress);
+            ServerAddress serverAddress = new ServerAddress(item);
+            controllerServers.put(serverAddress.getNodeId(), serverAddress);
         }
     }
 
-    private void parseSlaveNodeConfig(Properties configProperties) {
-        this.masterServerAddress = configProperties.getProperty(MASTER_NODE_ADDRESS);
-        if(StringUtil.isEmpty(masterServerAddress)){
-            throw new IllegalArgumentException(Constant.MASTER_NODE_ADDRESS + " cannot be empty.");
-        }
-        Matcher matcher = IP_REGEX_COMPILE.matcher(masterServerAddress);
-        if (!matcher.matches()) {
-            throw new IllegalArgumentException(Constant.MASTER_NODE_ADDRESS + " parameters "
-                    + masterServerAddress + " is invalid, must be an ip address.");
-        }
-
-        String serverPort = configProperties.getProperty(MASTER_NODE_PORT);
-        if(StringUtil.isEmpty(serverPort)){
-            throw new IllegalArgumentException(Constant.MASTER_NODE_PORT + " cannot be empty.");
-        }
-
-        try {
-            this.masterServerPort = Integer.parseInt(serverPort);
-        }catch (Exception ex){
-            throw new IllegalArgumentException(Constant.MASTER_NODE_PORT + " must be a number.");
-        }
+    public ServerAddress getCurrentNodeAddress() {
+        return controllerServers.get(getNodeId());
     }
 
-    public MasterAddress getCurrentNodeAddress() {
-        return masterNodeServers.get(nodeId);
+    public String getNodeId() {
+        return nodeIP + ":" + nodeInternalPort;
     }
 
     /**
-     * 获取比当前node.id较小的节点地址
+     * 获取配置文件中排在当前节点之前的节点地址列表
      *
      * @return
      */
-    public List<MasterAddress> getLowerIdMasterAddress() {
-        return masterNodeServers.values().stream().filter(a -> a.getNodeId() < nodeId).collect(Collectors.toList());
-    }
-
-    public Integer getMasterNodeIdByIpPort(String ip, int port) {
-        Optional<MasterAddress> first = masterNodeServers.values().stream()
-                .filter(a -> (a.getHost() + a.getMasterPort()).equals(ip + port)).findFirst();
-        if (first.isPresent()) {
-            return first.get().getNodeId();
+    public List<ServerAddress> getBeforeControllerAddress() {
+        ArrayList<ServerAddress> serverAddresses = new ArrayList<>(controllerServers.values());
+        List<ServerAddress> result = new ArrayList<>();
+        for (ServerAddress address : serverAddresses) {
+            if (!address.getNodeId().equals(getNodeId())) {
+                result.add(address);
+            }else{
+                break;
+            }
         }
-        return null;
+        return result;
     }
 
-    public List<Integer> getAllTheOtherNodeIds() {
-        return masterNodeServers.values().stream().map(MasterAddress::getNodeId)
-                .filter(a -> a != nodeId).collect(Collectors.toList());
+    /**
+     * 从给定的节点列表中获取最后的一个节点的nodeId
+     * @param nodeIds
+     * @return
+     */
+    public String getBetterControllerAddress(Set<String> nodeIds) {
+        List<ServerAddress> serverAddresses = new ArrayList<>(controllerServers.values());
+        Collections.reverse(serverAddresses);
+
+        for (ServerAddress address : serverAddresses) {
+            Optional<String> first = nodeIds.stream().filter(a -> a.equals(address.getNodeId())).findFirst();
+            if (first.isPresent()) {
+                return first.get();
+            }
+        }
+        // 若都未找到则随机返回一个
+        int index = new Random().nextInt();
+        return new ArrayList<>(nodeIds).get(index);
+    }
+
+    public List<ServerAddress> getOtherControllerAddresses() {
+        return controllerServers.values().stream()
+                .filter(a -> !a.getNodeId().equals(this.getNodeId()))
+                .collect(Collectors.toList());
+    }
+
+    public List<String> getAllTheOtherNodeIds() {
+        return controllerServers.values().stream().map(ServerAddress::getNodeId)
+                .filter(a -> !Objects.equals(a, getNodeId())).collect(Collectors.toList());
     }
 }
