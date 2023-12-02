@@ -26,13 +26,17 @@ public class BaseRequest {
     }
 
     protected void toBuffer(int payloadLength) {
+
         int length = 20 + REQUEST_HEADER_LENGTH + payloadLength;
         buffer = ByteBuffer.allocate(length);
+
         buffer.putInt(length);
         buffer.putInt(requestType.getValue());
         buffer.putLong(requestId);
         buffer.putLong(System.currentTimeMillis());
+
         writePayload();
+
         buffer.flip();
     }
 

@@ -2,6 +2,7 @@ package org.hiraeth.govern.common.domain;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -24,6 +25,8 @@ public class ServerAddress {
      */
     private int clientTcpPort;
     private int clientHttpPort;
+
+    private int port;
 
     public String getNodeId() {
         return host + ":" + internalPort;
@@ -57,5 +60,11 @@ public class ServerAddress {
         }
         this.host = arr[0];
         this.internalPort = Integer.parseInt(arr[1]);
+        this.port = internalPort;
+    }
+
+    @Override
+    public String toString(){
+        return getHost() + ":" + getPort();
     }
 }

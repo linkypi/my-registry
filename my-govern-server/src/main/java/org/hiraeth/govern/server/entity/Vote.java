@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.util.CommonUtil;
 
 import java.nio.ByteBuffer;
 
@@ -44,7 +45,7 @@ public class Vote extends MessageBase{
     }
 
     public ByteBuffer toBuffer() {
-        int strLength = MessageBase.getStrLength(targetNodeId);
+        int strLength = CommonUtil.getStrLength(targetNodeId);
         return convertToBuffer(8 + strLength);
     }
 

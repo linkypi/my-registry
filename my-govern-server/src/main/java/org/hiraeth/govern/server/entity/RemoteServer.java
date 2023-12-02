@@ -3,6 +3,7 @@ package org.hiraeth.govern.server.entity;
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.domain.ServerAddress;
+import org.hiraeth.govern.common.util.CommonUtil;
 
 import java.nio.ByteBuffer;
 
@@ -40,15 +41,15 @@ public class RemoteServer {
 
     public ByteBuffer toBuffer() {
 
-        int length = MessageBase.getStrLength(nodeId) + MessageBase.getStrLength(host);
+        int length = CommonUtil.getStrLength(nodeId) + CommonUtil.getStrLength(host);
         ByteBuffer buffer = ByteBuffer.allocate(28 + length);
         buffer.putInt(MessageType.NodeInfo.getValue());
         buffer.putInt(isControllerCandidate ? 1 : 0);
         buffer.putInt(clientHttpPort);
         buffer.putInt(clientTcpPort);
         buffer.putInt(internalPort);
-        MessageBase.writeStr(buffer, nodeId);
-        MessageBase.writeStr(buffer, host);
+        CommonUtil.writeStr(buffer, nodeId);
+        CommonUtil.writeStr(buffer, host);
         return buffer;
     }
 
@@ -59,8 +60,8 @@ public class RemoteServer {
             int clientHttpPort = buffer.getInt();
             int clientTcpPort = buffer.getInt();
             int internPort = buffer.getInt();
-            String nodeId = MessageBase.readStr(buffer);
-            String host = MessageBase.readStr(buffer);
+            String nodeId = CommonUtil.readStr(buffer);
+            String host = CommonUtil.readStr(buffer);
 
             RemoteServer remoteServer = new RemoteServer();
             remoteServer.setHost(host);

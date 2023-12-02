@@ -25,8 +25,9 @@ public class Constant {
     public static final String NODE_CLIENT_HTTP_PORT = "node.client.http.port";
     public static final String NODE_CLIENT_TCP_PORT = "node.client.tcp.port";
 
-    // 客户端配置
     public static final String SERVICE_NAME = "service.name";
+    public static final String SERVICE_INSTANCE_IP = "service.instance.ip";
+    public static final String SERVICE_INSTANCE_PORT = "service.instance.port";
 
     public static final int REQUEST_HEADER_LENGTH = 4;
 }

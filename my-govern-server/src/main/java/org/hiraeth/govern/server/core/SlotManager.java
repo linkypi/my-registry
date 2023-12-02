@@ -1,6 +1,8 @@
 package org.hiraeth.govern.server.core;
 
 import com.alibaba.fastjson.JSON;
+import lombok.Getter;
+import lombok.Setter;
 import org.hiraeth.govern.common.util.FileUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.RemoteServer;
@@ -18,6 +20,8 @@ import static org.hiraeth.govern.common.constant.Constant.SLOTS_COUNT;
  * @description:
  * @date: 2023/11/30 17:15
  */
+@Setter
+@Getter
 public class SlotManager {
 
     private static final Map<Integer, Slot> slots = new ConcurrentHashMap();
@@ -27,6 +31,10 @@ public class SlotManager {
      */
     private static final String SLOTS_FILE_NAME = ".slots";
     private static final String SLOT_FILE_NAME = ".slot";
+
+    public Slot getSlot(int num){
+        return slots.get(num);
+    }
 
     public void initSlots(SlotRang rang){
         for (int num = rang.getStart(); num < rang.getEnd(); num++) {

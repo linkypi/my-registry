@@ -25,11 +25,13 @@ public class IOThread extends Thread {
     private Selector selector;
     private Map<String, LinkedBlockingQueue<Request>> requestQueue;
     private ServiceInstance serviceInstance;
+    private ServerConnectionManager serverConnectionManager;
 
-    public IOThread(ServiceInstance serviceInstance) {
+    public IOThread(ServiceInstance serviceInstance, ServerConnectionManager serverConnectionManager) {
         this.serviceInstance = serviceInstance;
         this.selector = serviceInstance.getSelector();
         this.requestQueue = serviceInstance.getRequestQueue();
+        this.serverConnectionManager = serverConnectionManager;
     }
 
     @Override
@@ -59,6 +61,9 @@ public class IOThread extends Thread {
                     if ((selectionKey.readyOps() & SelectionKey.OP_READ) != 0) {
                         handleResponse(socketChannel, connection);
                     }
+                    if ((selectionKey.readyOps() & SelectionKey.OP_CONNECT) != 0) {
+                        handleConnect(socketChannel, selectionKey);
+                    }
                 }
             } catch (IOException ex) {
                 // 客户端主动断开连接
@@ -73,6 +78,25 @@ public class IOThread extends Thread {
             }
         }
 
+    }
+
+    private void handleConnect(SocketChannel socketChannel, SelectionKey selectionKey){
+        try {
+            if (socketChannel.finishConnect()) {
+                selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+
+                ServerConnection connection = new ServerConnection(selectionKey, socketChannel);
+                serverConnectionManager.add(connection);
+
+                selectionKey.attach(connection);
+                requestQueue.put(connection.getConnectionId(), new LinkedBlockingQueue<>());
+
+                log.info("established connection with server: {}, connection id: {}",
+                        socketChannel.getRemoteAddress(), connection.getConnectionId());
+            }
+        }catch (Exception ex){
+            log.error("handle connect occur error", ex);
+        }
     }
 
     private static final int RETIE_TIMES = 10;
@@ -99,6 +123,13 @@ public class IOThread extends Thread {
         if (response.getRequestType() == RequestType.FetchMetaData) {
             FetchMetaDataResponse fetchMetaDataResponse = FetchMetaDataResponse.parseFrom(response);
             serviceInstance.initMetaData(fetchMetaDataResponse);
+        }
+        if (response.getRequestType() == RequestType.RegisterService) {
+            if (response.isSuccess()) {
+                log.info("register service success.");
+                return;
+            }
+            log.info("register service failed.");
         }
     }
 

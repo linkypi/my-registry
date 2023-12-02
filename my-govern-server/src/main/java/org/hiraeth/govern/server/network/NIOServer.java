@@ -7,6 +7,7 @@ import org.hiraeth.govern.common.domain.Response;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.server.core.RemoteNodeManager;
+import org.hiraeth.govern.server.core.SlotManager;
 import org.hiraeth.govern.server.network.ClientConnectManager;
 import org.hiraeth.govern.server.network.ClientConnection;
 import org.hiraeth.govern.server.core.ClientRequestHandler;
@@ -36,13 +37,14 @@ public class NIOServer {
     private ServerSocketChannel serverSocketChannel;
     private ClientConnectManager clientConnectManager;
     private ClientRequestHandler clientRequestHandler;
+    private SlotManager slotManager;
 
     private Map<String, LinkedBlockingDeque<Response>> responseQueues = new ConcurrentHashMap<>();
 
-    public NIOServer(RemoteNodeManager remoteNodeManager) {
+    public NIOServer(RemoteNodeManager remoteNodeManager, SlotManager slotManager) {
         try {
             this.clientConnectManager = new ClientConnectManager();
-            this.clientRequestHandler = new ClientRequestHandler(remoteNodeManager);
+            this.clientRequestHandler = new ClientRequestHandler(remoteNodeManager, slotManager);
             this.selector = Selector.open();
         } catch (IOException ex) {
             log.error("controller server selector open failed.", ex);

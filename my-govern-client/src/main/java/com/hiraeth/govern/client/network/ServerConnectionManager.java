@@ -21,7 +21,7 @@ public class ServerConnectionManager {
     private Map<String, ServerConnection> connections = new ConcurrentHashMap<>();
 
     public void add(ServerConnection connection){
-        connections.put(connection.getConnectionId(), connection);
+        connections.put(connection.getAddress(), connection);
     }
     public void remove(ServerConnection connection){
         try {
@@ -30,7 +30,10 @@ public class ServerConnectionManager {
         } catch (IOException e) {
             log.error("close server socket channel occur error, connection id: {}", connection.getConnectionId());
         }
-        connections.remove(connection.getConnectionId());
+        connections.remove(connection.getAddress());
     }
 
+    public ServerConnection get(String key){
+        return connections.get(key);
+    }
 }

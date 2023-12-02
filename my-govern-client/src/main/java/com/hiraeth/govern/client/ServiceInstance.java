@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.*;
+import org.hiraeth.govern.common.util.CollectionUtil;
+import org.hiraeth.govern.common.util.CommonUtil;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -47,12 +49,17 @@ public class ServiceInstance {
     private ServerAddress server;
     private CountDownLatch fetchMataDataLatch = new CountDownLatch(1);
 
+    private ServerConnection controllerConnection;
+    private ServerConnection routeServerConnection;
+
+    private static final Random random = new Random();
+
     public ServiceInstance() {
         try {
             selector = Selector.open();
             serverConnectionManager = new ServerConnectionManager();
 
-            new IOThread(this).start();
+            new IOThread(this, serverConnectionManager).start();
         } catch (IOException ex) {
             log.error("start nio selector error", ex);
         } catch (Exception ex) {
@@ -66,9 +73,11 @@ public class ServiceInstance {
      */
     public void init() throws IOException {
         server = chooseControllerCandidate();
-        String connectionId = connectServer(server);
-        fetchMetaDataFromServer(connectionId);
+        controllerConnection = connectServer(server);
+        fetchMetaDataFromServer(controllerConnection.getConnectionId());
 
+        ServerAddress serverAddress = routeServer();
+        routeServerConnection = connectServer(serverAddress);
         register();
     }
 
@@ -77,24 +86,34 @@ public class ServiceInstance {
      * 跟指定服务器节点建立长连接, 然后发送请求到服务器节点进行服务注册
      */
     public void register() {
-        int slot = routeSlot();
+        Configuration configuration = Configuration.getInstance();
+        String serviceInstanceIp = configuration.getServiceInstanceIp();
+        int serviceInstancePort = configuration.getServiceInstancePort();
+        RegisterServiceRequest registerServiceRequest = new RegisterServiceRequest();
+        registerServiceRequest.setInstanceIp(serviceInstanceIp);
+        registerServiceRequest.setServicePort(serviceInstancePort);
+        registerServiceRequest.setServiceName(configuration.getServiceName());
+        Request request = registerServiceRequest.toRequest();
+        requestQueue.get(routeServerConnection.getConnectionId()).add(request);
+        log.info("register service {} to server {}.", configuration.getServiceName(), routeServerConnection.getAddress());
+    }
+
+    private ServerAddress routeServer() {
+        int slot = CommonUtil.routeSlot(Configuration.getInstance().getServiceName());
         String serverNodeId = locateServerNodeBySlot(slot);
         if (serverNodeId == null) {
             log.error("cannot register service to remote server, because the server node id is null.");
-            return;
+            return null;
         }
 
-        Optional<ServerAddress> first = serverAddresses.stream().filter(a -> Objects.equals(a.getNodeId(), serverNodeId)).findFirst();
+        Optional<ServerAddress> first = serverAddresses.stream()
+                .filter(a -> Objects.equals(a.getNodeId(), serverNodeId)).findFirst();
         if (!first.isPresent()) {
             log.error("cannot register service to remote server, because the server address not found, " +
                     "route node id: {}, server addresses: {}", serverNodeId, JSON.toJSONString(serverAddresses));
-            return;
+            return null;
         }
-        ServerAddress serverAddress = first.get();
-
-        String serviceName = Configuration.getInstance().getServiceName();
-        log.info("register service {} to server node {}.", serviceName, serverAddress.getClientNodeId());
-
+        return first.get();
     }
 
     public void startHeartbeatSchedule() {
@@ -111,16 +130,15 @@ public class ServiceInstance {
         return null;
     }
 
-    private int routeSlot(){
-        String serviceName = Configuration.getInstance().getServiceName();
-        // 为防止负数需要 & 操作
-        int hashCode = serviceName.hashCode() & Integer.MAX_VALUE;
-        return hashCode % SLOTS_COUNT;
-    }
-
     public void initMetaData(FetchMetaDataResponse response){
         this.slotsMap = response.getSlots();
         this.serverAddresses = response.getServerAddresses();
+        // 更新 ServerAddress 实际使用的端口 port
+        if(!CollectionUtil.isNullOrEmpty(serverAddresses)){
+            for (ServerAddress address: serverAddresses){
+                address.setPort(address.getClientTcpPort());
+            }
+        }
         log.info("init server meta data success.");
         fetchMataDataLatch.countDown();
     }
@@ -137,8 +155,8 @@ public class ServiceInstance {
         log.info("receive slots from server success: {}", JSON.toJSONString(slotsMap));
     }
 
-    private String connectServer(ServerAddress address) throws IOException {
-        InetSocketAddress inetSocketAddress = new InetSocketAddress(address.getHost(), address.getInternalPort());
+    private ServerConnection connectServer(ServerAddress address) throws IOException {
+        InetSocketAddress inetSocketAddress = new InetSocketAddress(address.getHost(), address.getPort());
         SocketChannel channel = SocketChannel.open();
         channel.configureBlocking(false);
         channel.socket().setSoLinger(false, -1);
@@ -148,42 +166,17 @@ public class ServiceInstance {
 
         channel.connect(inetSocketAddress);
 
-        log.info("try to connect server: {}", JSON.toJSONString(address));
+        String addressKey = address.toString();
 
-        return waitConnect();
+        log.info("connect server: {}", addressKey);
+        ServerConnection serverConnection = null;
+
+        do {
+            serverConnection = serverConnectionManager.get(addressKey);
+        } while (serverConnection == null);
+
+        return serverConnection;
     }
-
-    private String waitConnect() throws IOException {
-        boolean finishedConnect = false;
-        while (!finishedConnect) {
-            selector.select();
-            Set<SelectionKey> selectionKeys = selector.selectedKeys();
-            if (selectionKeys.isEmpty()) {
-                continue;
-            }
-            for (SelectionKey selectionKey : selectionKeys) {
-                if ((selectionKey.readyOps() & SelectionKey.OP_CONNECT) != 0) {
-                    SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
-                    if (socketChannel.finishConnect()) {
-                        finishedConnect = true;
-                        selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-
-                        ServerConnection serverConnection = new ServerConnection(selectionKey, socketChannel);
-                        serverConnectionManager.add(serverConnection);
-
-                        selectionKey.attach(serverConnection);
-                        requestQueue.put(serverConnection.getConnectionId(), new LinkedBlockingQueue<>());
-
-                        log.info("established connection with server, connection id: {}", serverConnection.getConnectionId());
-                        return serverConnection.getConnectionId();
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    private static final Random random = new Random();
 
     private ServerAddress chooseControllerCandidate() {
         Configuration configuration = Configuration.getInstance();

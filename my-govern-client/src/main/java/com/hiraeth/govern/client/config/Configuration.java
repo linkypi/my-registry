@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
 import org.hiraeth.govern.common.domain.ConfigurationException;
 import org.hiraeth.govern.common.domain.ServerAddress;
+import org.hiraeth.govern.common.util.CommonUtil;
 import org.hiraeth.govern.common.util.StringUtil;
 import java.io.File;
 import java.io.FileInputStream;
@@ -37,6 +38,8 @@ public class Configuration {
 
 
     private String dataDir;
+    private String serviceInstanceIp;
+    private int serviceInstancePort;
     private String serviceName;
 
     private List<ServerAddress> controllerCandidateServers = new ArrayList<>();
@@ -72,6 +75,14 @@ public class Configuration {
                 throw new IllegalArgumentException(SERVICE_NAME + " cannot empty.");
             }
             this.serviceName = serviceName;
+
+            String serviceIP = configProperties.getProperty(SERVICE_INSTANCE_IP);
+            if (StringUtil.isEmpty(serviceIP)) {
+                throw new IllegalArgumentException(SERVICE_INSTANCE_IP + " cannot empty.");
+            }
+            this.serviceInstanceIp = serviceIP;
+
+            this.serviceInstancePort  = CommonUtil.parseInt(configProperties, SERVICE_INSTANCE_PORT);
 
         } catch (IllegalArgumentException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);

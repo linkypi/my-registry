@@ -6,6 +6,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
 import org.hiraeth.govern.common.domain.ConfigurationException;
+import org.hiraeth.govern.common.util.CommonUtil;
 import org.hiraeth.govern.common.util.StringUtil;
 import org.hiraeth.govern.common.domain.ServerAddress;
 
@@ -94,10 +95,10 @@ public class Configuration {
 
             this.nodeIP = parseNodeIP(configProperties);
 
-            this.nodeInternalPort = parseInt(configProperties, NODE_INTERNAL_PORT);
-            this.nodeClientHttpPort = parseInt(configProperties, NODE_CLIENT_HTTP_PORT);
-            this.nodeClientTcpPort = parseInt(configProperties, NODE_CLIENT_TCP_PORT);
-            this.clusterNodeCount = parseInt(configProperties, CLUSTER_NODE_COUNT);
+            this.nodeInternalPort = CommonUtil.parseInt(configProperties, NODE_INTERNAL_PORT);
+            this.nodeClientHttpPort = CommonUtil.parseInt(configProperties, NODE_CLIENT_HTTP_PORT);
+            this.nodeClientTcpPort = CommonUtil.parseInt(configProperties, NODE_CLIENT_TCP_PORT);
+            this.clusterNodeCount = CommonUtil.parseInt(configProperties, CLUSTER_NODE_COUNT);
 
             serverAddress = new ServerAddress(nodeIP, nodeInternalPort, nodeClientHttpPort, nodeClientTcpPort);
 
@@ -129,23 +130,6 @@ public class Configuration {
             throw new IllegalArgumentException(Constant.NODE_IP + " parameters " + nodeIp + " is invalid.");
         }
         return nodeIp;
-    }
-
-    private int parseInt(Properties configProperties, String arg){
-        String value = "";
-        int intValue = 0;
-        try {
-            value = configProperties.getProperty(arg);
-            if (StringUtil.isEmpty(value)) {
-                throw new IllegalArgumentException(arg + " cannot empty.");
-            }
-
-            intValue = Integer.parseInt(value);
-        }catch (Exception ex){
-            throw new IllegalArgumentException( "parameter " + arg +" is invalid "+ value);
-        }
-        log.debug("parameter {} = {}", arg, intValue);
-        return intValue;
     }
 
     private boolean validateIsControllerCandidate(String isControllerCandidate) {

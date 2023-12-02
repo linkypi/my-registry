@@ -25,11 +25,13 @@ public class ServerConnection extends MessageReader {
 
     private SelectionKey selectionKey;
     private String connectionId;
+    private String address; // ip:port
 
-    public ServerConnection(SelectionKey selectionKey, SocketChannel socketChannel){
+    public ServerConnection(SelectionKey selectionKey, SocketChannel socketChannel) throws IOException {
         this.selectionKey = selectionKey;
         this.socketChannel = socketChannel;
         this.connectionId = UUID.randomUUID().toString().replace("-","");
+        this.address = socketChannel.getRemoteAddress().toString().replace("/", "");
     }
 
     @Override

@@ -41,7 +41,7 @@ public class ServerInstance {
         this.remoteNodeManager = new RemoteNodeManager();
         this.serverNetworkManager = new ServerNetworkManager(remoteNodeManager);
         this.slotManager = new SlotManager();
-        this.NIOServer = new NIOServer(remoteNodeManager);
+        this.NIOServer = new NIOServer(remoteNodeManager, slotManager);
 //        new DetectBlockingQueueThread(NetworkManager).start();
     }
 
@@ -133,6 +133,12 @@ public class ServerInstance {
                         NodeStatusManager.setFatal();
                         return;
                     }
+
+                    // 初始化自身负责的槽位
+                    String nodeId = Configuration.getInstance().getNodeId();
+                    SlotRang slotRang = confirm.getSlots().get(nodeId);
+                    slotManager.initSlots(slotRang);
+
                     persistSlots(confirm);
                     break;
                 }
