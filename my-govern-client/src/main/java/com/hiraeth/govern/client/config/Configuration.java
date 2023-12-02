@@ -41,6 +41,7 @@ public class Configuration {
     private String serviceInstanceIp;
     private int serviceInstancePort;
     private String serviceName;
+    private int heartbeatInterval;
 
     private List<ServerAddress> controllerCandidateServers = new ArrayList<>();
 
@@ -82,7 +83,8 @@ public class Configuration {
             }
             this.serviceInstanceIp = serviceIP;
 
-            this.serviceInstancePort  = CommonUtil.parseInt(configProperties, SERVICE_INSTANCE_PORT);
+            this.serviceInstancePort = CommonUtil.parseInt(configProperties, SERVICE_INSTANCE_PORT);
+            this.heartbeatInterval = CommonUtil.parseInt(configProperties, HEARTBEAT_INTERVAL);
 
         } catch (IllegalArgumentException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);

@@ -49,12 +49,12 @@ public class MessageReader {
                 int length = lengthBuffer.getInt();
                 // 需要减去头部4直接的长度空间
                 payloadBuffer = ByteBuffer.allocate(length - REQUEST_HEADER_LENGTH);
-                log.info("read payload to buffer, capacity: {}", length);
+//                log.info("read payload to buffer, capacity: {}", length);
             }
 
             if (!hasReadPayload) {
                 int read = socketChannel.read(payloadBuffer);
-                log.info("read payload {} bytes.", read);
+//                log.info("read payload {} bytes.", read);
 
                 // 数据没有读完, 返回继续等待
                 if (payloadBuffer.hasRemaining()) {

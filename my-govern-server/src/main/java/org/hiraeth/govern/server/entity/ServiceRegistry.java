@@ -2,6 +2,7 @@ package org.hiraeth.govern.server.entity;
 
 import org.hiraeth.govern.common.domain.ServiceInstance;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,10 +25,24 @@ public class ServiceRegistry {
         return Singleton.instance;
     }
 
-    private Map<String, List<ServiceInstance>> services = new ConcurrentHashMap<>();
+    // 服务注册表
+    private Map<String, List<ServiceInstance>> serviceRegistrys = new ConcurrentHashMap<>();
+    // 服务实例集合
+    private Map<String, ServiceInstance> serviceInstancesMap = new ConcurrentHashMap<>();
 
     public void register(ServiceInstance instance){
-        List<ServiceInstance> list = services.getOrDefault(instance.getServiceName(), new CopyOnWriteArrayList<>());
+        List<ServiceInstance> list = serviceRegistrys.getOrDefault(instance.getServiceName(), new CopyOnWriteArrayList<>());
         list.add(instance);
+        serviceInstancesMap.put(instance.getServiceInstanceId(), instance);
+    }
+
+    public void heartbeat(ServiceInstance instance) {
+        String serviceInstanceId = getServiceInstanceId(instance);
+        ServiceInstance serviceInstance = serviceInstancesMap.get(serviceInstanceId);
+        serviceInstance.setLatestHeartbeatTime(new Date().getTime());
+    }
+
+    public static String getServiceInstanceId(ServiceInstance instance) {
+        return instance.getServiceName() + "/" + instance.getServiceInstanceIp() + "/" + instance.getServiceInstancePort();
     }
 }

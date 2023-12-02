@@ -12,6 +12,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -26,12 +27,15 @@ public class IOThread extends Thread {
     private Map<String, LinkedBlockingQueue<Request>> requestQueue;
     private ServiceInstance serviceInstance;
     private ServerConnectionManager serverConnectionManager;
+    private ConcurrentHashMap<Long, BaseResponse> responses;
 
-    public IOThread(ServiceInstance serviceInstance, ServerConnectionManager serverConnectionManager) {
+    public IOThread(ServiceInstance serviceInstance, ServerConnectionManager serverConnectionManager,
+                    ConcurrentHashMap<Long, BaseResponse> responses) {
         this.serviceInstance = serviceInstance;
         this.selector = serviceInstance.getSelector();
         this.requestQueue = serviceInstance.getRequestQueue();
         this.serverConnectionManager = serverConnectionManager;
+        this.responses = responses;
     }
 
     @Override
@@ -123,14 +127,17 @@ public class IOThread extends Thread {
         if (response.getRequestType() == RequestType.FetchMetaData) {
             FetchMetaDataResponse fetchMetaDataResponse = FetchMetaDataResponse.parseFrom(response);
             serviceInstance.initMetaData(fetchMetaDataResponse);
+            return;
         }
         if (response.getRequestType() == RequestType.RegisterService) {
             if (response.isSuccess()) {
                 log.info("register service success.");
                 return;
             }
-            log.info("register service failed.");
+            log.error("register service failed.");
+            return;
         }
+        responses.put(response.getRequestId(), response);
     }
 
     private void sendRequest(SocketChannel socketChannel, ServerConnection connection) throws IOException {
@@ -150,7 +157,7 @@ public class IOThread extends Thread {
         }
 
         int writeLen = socketChannel.write(request.getBuffer());
-        log.info("socket channel write {} bytes", writeLen);
+//        log.info("socket channel write {} bytes", writeLen);
 
         // 检查数据是否已经写完, 写完后移除
         if (!request.getBuffer().hasRemaining()) {

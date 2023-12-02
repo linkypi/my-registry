@@ -26,4 +26,8 @@ public class Slot {
     public void registerServiceInstance(ServiceInstance serviceInstance){
         serviceRegistry.register(serviceInstance);
     }
+
+    public void heartbeat(ServiceInstance serviceInstance) {
+        serviceRegistry.heartbeat(serviceInstance);
+    }
 }

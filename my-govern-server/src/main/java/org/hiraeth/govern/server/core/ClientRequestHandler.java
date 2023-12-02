@@ -29,13 +29,40 @@ public class ClientRequestHandler {
             FetchMetaDataResponse fetchMetaDataResponse = createMetaData(fetchMetaDataRequest);
             return fetchMetaDataResponse.toResponse();
         }
-
         if (request.getRequestType() == RequestType.RegisterService) {
             BaseResponse response = saveServiceInstance(request);
             return response.toResponse();
         }
+        if (request.getRequestType() == RequestType.Heartbeat) {
+            BaseResponse response = handleHeartbeat(request);
+            return response.toResponse();
+        }
 
         return null;
+    }
+
+    private BaseResponse handleHeartbeat(BaseRequest request) {
+        BaseResponse response = new BaseResponse(RequestType.Heartbeat, true);
+        HeartbeatRequest heartbeatRequest = HeartbeatRequest.parseFrom(request);
+
+        try {
+
+            String serviceName = heartbeatRequest.getServiceName();
+            int servicePort = heartbeatRequest.getServiceInstancePort();
+            String instanceIp = heartbeatRequest.getServiceInstanceIp();
+
+            ServiceInstance serviceInstance = new ServiceInstance(serviceName, instanceIp, servicePort);
+
+            int slotNum = CommonUtil.routeSlot(serviceName);
+            Slot slot = slotManager.getSlot(slotNum);
+            slot.heartbeat(serviceInstance);
+            log.info("heartbeat service instance success: {}", JSON.toJSONString(serviceInstance));
+        }catch (Exception ex){
+            log.error("heartbeat service instance occur error: {}", JSON.toJSONString(heartbeatRequest), ex);
+            response = new BaseResponse(RequestType.RegisterService, false);
+        }
+        response.setRequestId(request.getRequestId());
+        return response;
     }
 
     private BaseResponse saveServiceInstance(BaseRequest request) {
@@ -57,7 +84,7 @@ public class ClientRequestHandler {
             log.error("register service instance occur error: {}", JSON.toJSONString(registerServiceRequest), ex);
             response = new BaseResponse(RequestType.RegisterService, false);
         }
-
+        response.setRequestId(request.getRequestId());
         return response;
     }
 

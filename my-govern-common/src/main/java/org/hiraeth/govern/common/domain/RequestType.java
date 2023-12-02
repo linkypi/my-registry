@@ -11,6 +11,7 @@ import lombok.Getter;
 public enum RequestType {
     FetchMetaData(1),
     RegisterService(2),
+    Heartbeat(3),
 
     ;
 

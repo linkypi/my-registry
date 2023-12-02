@@ -29,5 +29,7 @@ public class Constant {
     public static final String SERVICE_INSTANCE_IP = "service.instance.ip";
     public static final String SERVICE_INSTANCE_PORT = "service.instance.port";
 
+    public static final String HEARTBEAT_INTERVAL = "heartbeat.interval.second";
+
     public static final int REQUEST_HEADER_LENGTH = 4;
 }

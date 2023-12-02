@@ -2,6 +2,7 @@ package com.hiraeth.govern.client;
 
 import com.alibaba.fastjson.JSON;
 import com.hiraeth.govern.client.config.Configuration;
+import com.hiraeth.govern.client.network.HeartbeatThread;
 import com.hiraeth.govern.client.network.IOThread;
 import com.hiraeth.govern.client.network.ServerConnection;
 import com.hiraeth.govern.client.network.ServerConnectionManager;
@@ -21,8 +22,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
-
-import static org.hiraeth.govern.common.constant.Constant.SLOTS_COUNT;
 
 /**
  * @author: lynch
@@ -59,7 +58,7 @@ public class ServiceInstance {
             selector = Selector.open();
             serverConnectionManager = new ServerConnectionManager();
 
-            new IOThread(this, serverConnectionManager).start();
+            new IOThread(this, serverConnectionManager, responses).start();
         } catch (IOException ex) {
             log.error("start nio selector error", ex);
         } catch (Exception ex) {
@@ -96,6 +95,9 @@ public class ServiceInstance {
         Request request = registerServiceRequest.toRequest();
         requestQueue.get(routeServerConnection.getConnectionId()).add(request);
         log.info("register service {} to server {}.", configuration.getServiceName(), routeServerConnection.getAddress());
+
+        new HeartbeatThread(requestQueue, responses, routeServerConnection.getConnectionId()).start();
+        log.info("service instance heartbeat started ...");
     }
 
     private ServerAddress routeServer() {
