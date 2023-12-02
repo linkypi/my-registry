@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
+import org.hiraeth.govern.common.domain.ConfigurationException;
 import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.common.util.StringUtil;
 import java.io.File;
@@ -35,14 +36,10 @@ public class Configuration {
     private String configPath;
 
 
-    // slave 节点参数
-    private String masterServerAddress;
-    private int masterServerPort;
-
     private String dataDir;
     private String serviceName;
 
-    private List<ServerAddress> serversAddresses = new ArrayList<>();
+    private List<ServerAddress> controllerCandidateServers = new ArrayList<>();
 
     private static class Singleton {
         private static Configuration instance = new Configuration();
@@ -62,7 +59,7 @@ public class Configuration {
         try {
             Properties configProperties = loadConfigFile(configPath);
 
-            parseGovernServers(configProperties);
+            parseControllerCandidateServers(configProperties);
 
             String dir = configProperties.getProperty(DATA_DIR);
             if (StringUtil.isEmpty(dir)) {
@@ -106,24 +103,24 @@ public class Configuration {
         return configProperties;
     }
 
-    private void parseGovernServers(Properties configProperties) {
-        String nodeServers = configProperties.getProperty(Constant.GOVERN_SERVERS);
+    private void parseControllerCandidateServers(Properties configProperties) {
+        String nodeServers = configProperties.getProperty(Constant.CONTROLLER_CANDIDATE_SERVERS);
         if (StringUtil.isEmpty(nodeServers)) {
-            throw new IllegalArgumentException(Constant.GOVERN_SERVERS + " cannot be empty.");
+            throw new IllegalArgumentException(Constant.CONTROLLER_CANDIDATE_SERVERS + " cannot be empty.");
         }
         String[] arr = nodeServers.split(",");
         if (arr.length == 0) {
-            throw new IllegalArgumentException(Constant.GOVERN_SERVERS + " cannot be empty.");
+            throw new IllegalArgumentException(Constant.CONTROLLER_CANDIDATE_SERVERS + " cannot be empty.");
         }
         for (String item : arr) {
             Matcher matcher = CLUSTER_REGEX_COMPILE.matcher(item);
             if (!matcher.matches()) {
-                throw new IllegalArgumentException(Constant.GOVERN_SERVERS + " parameters " + item + " is invalid.");
+                throw new IllegalArgumentException(Constant.CONTROLLER_CANDIDATE_SERVERS + " parameters " + item + " is invalid.");
             }
         }
         for (String item : arr) {
             ServerAddress nodeAddress = new ServerAddress(item);
-            serversAddresses.add(nodeAddress);
+            controllerCandidateServers.add(nodeAddress);
         }
     }
 

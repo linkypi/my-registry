@@ -23,23 +23,23 @@ import java.util.stream.Collectors;
 public class RemoteNodeManager {
     private static final Map<String, RemoteServer> remoteServerNodes = new ConcurrentHashMap<>();
 
-    public List<ServerAddress> getAllOnlineMasterAddresses(){
+    public List<ServerAddress> getAllOnlineServerAddresses(){
         Configuration configuration = Configuration.getInstance();
         List<ServerAddress> addresses = configuration.getControllerServers().values().stream().filter(
                 (a) -> remoteServerNodes.containsKey(a.getNodeId())).collect(Collectors.toList());
         return addresses;
     }
 
-    public void addRemoteServerNode(RemoteServer masterNode){
-        remoteServerNodes.put(masterNode.getNodeId(), masterNode);
-        log.info("add remote master node: {}", JSON.toJSONString(masterNode));
+    public void addRemoteServerNode(RemoteServer serverNode){
+        remoteServerNodes.put(serverNode.getNodeId(), serverNode);
+        log.info("add remote server node: {}", JSON.toJSONString(serverNode));
     }
 
     public int getTotalCandidate(){
         return remoteServerNodes.size();
     }
 
-    public List<RemoteServer> getAllRemoteMasterNodes(){
+    public List<RemoteServer> getAllRemoteServers(){
         return new ArrayList<>(remoteServerNodes.values());
     }
 

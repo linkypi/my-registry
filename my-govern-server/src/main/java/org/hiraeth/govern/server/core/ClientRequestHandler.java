@@ -31,7 +31,7 @@ public class ClientRequestHandler {
         FetchMetaDataResponse fetchMetaDataResponse = new FetchMetaDataResponse();
         fetchMetaDataResponse.setRequestId(request.getRequestId());
         fetchMetaDataResponse.setSlots(nodeStatusManager.getSlots());
-        fetchMetaDataResponse.setServerAddresses(remoteNodeManager.getAllOnlineMasterAddresses());
+        fetchMetaDataResponse.setServerAddresses(remoteNodeManager.getAllOnlineServerAddresses());
         return fetchMetaDataResponse;
     }
 }

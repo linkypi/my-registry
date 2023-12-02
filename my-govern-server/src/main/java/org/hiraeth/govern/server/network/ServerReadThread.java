@@ -1,6 +1,7 @@
-package org.hiraeth.govern.server.core;
+package org.hiraeth.govern.server.network;
 
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.server.core.NodeStatusManager;
 import org.hiraeth.govern.server.entity.MessageBase;
 import org.hiraeth.govern.server.entity.MessageType;
 
@@ -19,7 +20,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 @Slf4j
 public class ServerReadThread extends Thread{
     /**
-     * master节点之间的网络连接
+     * Server 节点之间的网络连接
      */
     private Socket socket;
     private DataInputStream inputStream;
@@ -53,7 +54,7 @@ public class ServerReadThread extends Thread{
 
                 receiveQueue.get(msgType).add(messageBase);
 
-                MessageType msgTypeEnum = messageBase.getMessageType();
+//                MessageType msgTypeEnum = messageBase.getMessageType();
 //                log.info("get message from remote node: {}, message type: {}, message size: {} bytes",
 //                        socket.getRemoteSocketAddress(), msgTypeEnum.name(), buffer.capacity());
             } catch (IOException ex) {

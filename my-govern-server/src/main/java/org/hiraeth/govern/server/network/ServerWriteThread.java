@@ -1,6 +1,7 @@
-package org.hiraeth.govern.server.core;
+package org.hiraeth.govern.server.network;
 
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.server.core.NodeStatusManager;
 import org.hiraeth.govern.server.entity.Message;
 
 import java.io.DataOutputStream;
@@ -16,7 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 @Slf4j
 public class ServerWriteThread extends Thread{
     /**
-     * master节点之间的网络连接
+     * Server节点之间的网络连接
      */
     private Socket socket;
     private DataOutputStream outputStream;

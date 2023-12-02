@@ -1,10 +1,10 @@
 syntax = "proto3";
 
 package govern;
-option java_package = "org.hiraeth.govern.server.node.master";
-option java_outer_classname = "MasterNodeMetaInfoRequestProto";
+option java_package = "org.hiraeth.govern.server";
+option java_outer_classname = "ServerNodeMetaInfoRequestProto";
 
-message MasterNodeMetaInfoRequest{
+message ServerNodeMetaInfoRequest{
     int32 node_id = 1;
     bool is_controller_candidate = 2;
 }

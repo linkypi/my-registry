@@ -1,5 +1,7 @@
-package com.hiraeth.govern.client;
+package com.hiraeth.govern.client.network;
 
+import com.hiraeth.govern.client.ServiceInstance;
+import com.hiraeth.govern.client.network.ServerConnection;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.*;
 
@@ -22,12 +24,12 @@ public class IOThread extends Thread {
 
     private Selector selector;
     private Map<String, LinkedBlockingQueue<Request>> requestQueue;
-    private ClientServer clientServer;
+    private ServiceInstance serviceInstance;
 
-    public IOThread(ClientServer clientServer) {
-        this.clientServer = clientServer;
-        this.selector = clientServer.getSelector();
-        this.requestQueue = clientServer.getRequestQueue();
+    public IOThread(ServiceInstance serviceInstance) {
+        this.serviceInstance = serviceInstance;
+        this.selector = serviceInstance.getSelector();
+        this.requestQueue = serviceInstance.getRequestQueue();
     }
 
     @Override
@@ -76,13 +78,13 @@ public class IOThread extends Thread {
     private static final int RETIE_TIMES = 10;
     private void reconnectionServer(ServerConnection connection) {
 
-        clientServer.getServerConnectionManager().remove(connection);
+        serviceInstance.getServerConnectionManager().remove(connection);
         int retry = 1;
 
         while (retry <= RETIE_TIMES) {
             try {
                 log.info("reconnection to remote server, retry times {}", retry);
-                clientServer.init();
+                serviceInstance.init();
                 break;
             } catch (Exception ex) {
                 log.error("reconnection remote server failed, retry time {}", retry, ex);
@@ -96,7 +98,7 @@ public class IOThread extends Thread {
         BaseResponse response = connection.doReadIO();
         if (response.getRequestType() == RequestType.FetchMetaData) {
             FetchMetaDataResponse fetchMetaDataResponse = FetchMetaDataResponse.parseFrom(response);
-            clientServer.initMetaData(fetchMetaDataResponse);
+            serviceInstance.initMetaData(fetchMetaDataResponse);
         }
     }
 

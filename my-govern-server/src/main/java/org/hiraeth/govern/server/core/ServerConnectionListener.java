@@ -5,6 +5,7 @@ import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.server.entity.NodeStatus;
 import org.hiraeth.govern.server.entity.RemoteServer;
+import org.hiraeth.govern.server.network.ServerNetworkManager;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -45,11 +46,10 @@ public class ServerConnectionListener extends Thread{
                 serverSocket.setReuseAddress(true);
                 serverSocket.bind(endpoint);
 
-                log.info("master binding {}.", currentServerAddress.getNodeId());
+                log.info("server binding {}.", currentServerAddress.getNodeId());
 
-                // 跟发起连接请求的master建立网络连接
+                // 跟发起连接请求的 server 建立网络连接
                 while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING){
-                    // id 比自身大的master节点会发送连接请求到此处
                     Socket socket = serverSocket.accept();
                     socket.setTcpNoDelay(true);
                     socket.setSoTimeout(0); // 读取数据超时时间为0 ,即无数据时阻塞
@@ -63,12 +63,12 @@ public class ServerConnectionListener extends Thread{
 
                     String remoteNodeId = remoteServer.getNodeId();
 
-                    serverNetworkManager.addRemoteMasterNode(remoteServer);
+                    serverNetworkManager.addRemoteServerNode(remoteServer);
 
                     // 维护建立的连接
                     serverNetworkManager.addRemoteNodeSocket(remoteNodeId, socket);
 
-                    serverNetworkManager.startMasterIOThreads(remoteNodeId, socket);
+                    serverNetworkManager.startServerIOThreads(remoteNodeId, socket);
 
                     // 发送当前节点信息给当前连接节点
                     if(!serverNetworkManager.sendCurrentNodeInfo(socket)){
@@ -76,21 +76,21 @@ public class ServerConnectionListener extends Thread{
                         break;
                     }
 
-                    log.info("established connection with master node : {}, remote node id: {}, io threads started.",
+                    log.info("established connection with server : {}, remote node id: {}, io threads started.",
                             socket.getRemoteSocketAddress(), remoteNodeId);
                 }
             } catch (IOException e) {
-                log.error("listening for other master node's connection error.", e);
+                log.error("listening for other server node's connection error.", e);
                 retries++;
 
                 if(retries <= DEFAULT_RETRIES){
-                    log.error("this is "+ retries +" times retry to listen other master node's connection.");
+                    log.error("this is "+ retries +" times retry to listen other server node's connection.");
                 }
             }finally {
                 try {
                     serverSocket.close();
                 } catch (IOException ex) {
-                    log.error("closing socket server failed when listening other master node's connection.", ex);
+                    log.error("closing socket server failed when listening other server node's connection.", ex);
                 }
             }
             if(!fatalError){
@@ -99,7 +99,7 @@ public class ServerConnectionListener extends Thread{
         }
 
         NodeStatusManager.setNodeStatus(NodeStatus.FATAL);
-        log.error("failed to listen other master node's connection, although retried {} times, going to shutdown.", DEFAULT_RETRIES);
+        log.error("failed to listen other server node's connection, although retried {} times, going to shutdown.", DEFAULT_RETRIES);
     }
 
 }

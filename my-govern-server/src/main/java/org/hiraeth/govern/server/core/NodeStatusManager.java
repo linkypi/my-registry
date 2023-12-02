@@ -3,7 +3,7 @@ package org.hiraeth.govern.server.core;
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.server.entity.ElectionResult;
-import org.hiraeth.govern.server.entity.MasterRole;
+import org.hiraeth.govern.server.entity.ServerRole;
 import org.hiraeth.govern.server.entity.NodeStatus;
 import org.hiraeth.govern.common.domain.SlotRang;
 
@@ -40,14 +40,14 @@ public class NodeStatusManager {
     // 新leader开始统领的时间
     private long startTimestamp;
     // 当前机器的角色
-    private MasterRole masterRole;
+    private ServerRole serverRole;
     private Map<String, SlotRang> slots;
 
     public void updateStatus(ElectionResult electionResult, ElectionStage.ELStage elStage){
         this.controllerId = electionResult.getControllerId();
         this.epoch = electionResult.getEpoch();
         this.startTimestamp = electionResult.getTimestamp();
-        this.masterRole = electionResult.getMasterRole();
+        this.serverRole = electionResult.getServerRole();
         this.stage = elStage;
     }
 

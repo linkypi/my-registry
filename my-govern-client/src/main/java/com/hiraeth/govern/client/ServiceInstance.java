@@ -2,6 +2,9 @@ package com.hiraeth.govern.client;
 
 import com.alibaba.fastjson.JSON;
 import com.hiraeth.govern.client.config.Configuration;
+import com.hiraeth.govern.client.network.IOThread;
+import com.hiraeth.govern.client.network.ServerConnection;
+import com.hiraeth.govern.client.network.ServerConnectionManager;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +30,7 @@ import static org.hiraeth.govern.common.constant.Constant.SLOTS_COUNT;
 @Getter
 @Setter
 @Slf4j
-public class ClientServer {
+public class ServiceInstance {
 
     // io 多路复用组件
     private Selector selector;
@@ -40,9 +43,11 @@ public class ClientServer {
     private ServerConnectionManager serverConnectionManager;
     private Map<String, SlotRang> slotsMap;
     private List<ServerAddress> serverAddresses;
+    // 当前连接的服务器
+    private ServerAddress server;
     private CountDownLatch fetchMataDataLatch = new CountDownLatch(1);
 
-    public ClientServer() {
+    public ServiceInstance() {
         try {
             selector = Selector.open();
             serverConnectionManager = new ServerConnectionManager();
@@ -60,8 +65,8 @@ public class ClientServer {
      * 发送请求到controller候选节点获取slots数据
      */
     public void init() throws IOException {
-        ServerAddress serverAddress = chooseServer();
-        String connectionId = connectServer(serverAddress);
+        server = chooseControllerCandidate();
+        String connectionId = connectServer(server);
         fetchMetaDataFromServer(connectionId);
 
         register();
@@ -79,7 +84,7 @@ public class ClientServer {
             return;
         }
 
-        Optional<ServerAddress> first = serverAddresses.stream().filter(a -> a.getNodeId() == serverNodeId).findFirst();
+        Optional<ServerAddress> first = serverAddresses.stream().filter(a -> Objects.equals(a.getNodeId(), serverNodeId)).findFirst();
         if (!first.isPresent()) {
             log.error("cannot register service to remote server, because the server address not found, " +
                     "route node id: {}, server addresses: {}", serverNodeId, JSON.toJSONString(serverAddresses));
@@ -88,7 +93,7 @@ public class ClientServer {
         ServerAddress serverAddress = first.get();
 
         String serviceName = Configuration.getInstance().getServiceName();
-        log.info("register service {} to server node {}.", serviceName, serverAddress.getNodeId());
+        log.info("register service {} to server node {}.", serviceName, serverAddress.getClientNodeId());
 
     }
 
@@ -133,7 +138,7 @@ public class ClientServer {
     }
 
     private String connectServer(ServerAddress address) throws IOException {
-        InetSocketAddress inetSocketAddress = new InetSocketAddress(address.getHost(), address.getClientTcpPort());
+        InetSocketAddress inetSocketAddress = new InetSocketAddress(address.getHost(), address.getInternalPort());
         SocketChannel channel = SocketChannel.open();
         channel.configureBlocking(false);
         channel.socket().setSoLinger(false, -1);
@@ -143,7 +148,7 @@ public class ClientServer {
 
         channel.connect(inetSocketAddress);
 
-        log.info("try to connect server: {}", address);
+        log.info("try to connect server: {}", JSON.toJSONString(address));
 
         return waitConnect();
     }
@@ -180,12 +185,12 @@ public class ClientServer {
 
     private static final Random random = new Random();
 
-    private ServerAddress chooseServer() {
+    private ServerAddress chooseControllerCandidate() {
         Configuration configuration = Configuration.getInstance();
-        List<ServerAddress> servers = configuration.getServersAddresses();
+        List<ServerAddress> servers = configuration.getControllerCandidateServers();
         int index = random.nextInt(servers.size());
         ServerAddress serverAddress = servers.get(index);
-        log.info("choose server: {}", serverAddress);
+        log.info("choose server: {}", JSON.toJSONString(serverAddress));
         return serverAddress;
     }
 

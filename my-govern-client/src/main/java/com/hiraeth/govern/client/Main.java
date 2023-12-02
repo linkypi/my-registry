@@ -18,6 +18,6 @@ public class Main {
 
         configuration.parse();
 
-        new ClientServer().init();
+        new ServiceInstance().init();
     }
 }

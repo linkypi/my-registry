@@ -1,9 +1,12 @@
-package org.hiraeth.govern.server.core;
+package org.hiraeth.govern.server.network;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.common.util.CollectionUtil;
 import org.hiraeth.govern.server.config.Configuration;
+import org.hiraeth.govern.server.core.NodeStatusManager;
+import org.hiraeth.govern.server.core.RemoteNodeManager;
+import org.hiraeth.govern.server.core.ServerConnectionListener;
 import org.hiraeth.govern.server.entity.*;
 
 import java.io.*;
@@ -37,11 +40,11 @@ public class ServerNetworkManager extends NetworkManager {
     /**
      * 等待重试发起连接的controller节点集合
      */
-    private CopyOnWriteArrayList<ServerAddress> retryConnectMasterNodes = new CopyOnWriteArrayList<>();
+    private CopyOnWriteArrayList<ServerAddress> retryConnectcontrollers = new CopyOnWriteArrayList<>();
     /**
-     * 与其他controller节点建立好的连接
+     * 与其他server节点建立好的连接
      */
-    private Map<String, Socket> remoteMasterNodeSockets = new ConcurrentHashMap<>();
+    private Map<String, Socket> remoteServerSockets = new ConcurrentHashMap<>();
     /**
      * 发送队列
      */
@@ -49,9 +52,7 @@ public class ServerNetworkManager extends NetworkManager {
     /**
      * 接收队列
      */
-    private Map<Integer, LinkedBlockingQueue<MessageBase>> masterReceiveQueues = new ConcurrentHashMap<>();
-    // nodeId -> requestType -> response buffer
-    private Map<String, Map<Integer, LinkedBlockingQueue<MessageBase>>> slaveReceiveQueues = new ConcurrentHashMap<>();
+    private Map<Integer, LinkedBlockingQueue<MessageBase>> receiveQueues = new ConcurrentHashMap<>();
 
     /**
      * 远程controller节点管理组件
@@ -60,17 +61,16 @@ public class ServerNetworkManager extends NetworkManager {
 
     public ServerNetworkManager(RemoteNodeManager remoteNodeManager) {
         this.remoteNodeManager = remoteNodeManager;
-        new RetryConnectMasterNodeThread().start();
+        new RetryConnectServerThread().start();
     }
 
     /**
-     * 主动连接比自身node.id 更小的 maser 节点
-     * 为防止重复连接，所有controller节点的连接顺序为 1 <- 2 <- 3,
-     * 即只有 node.id 较大的节点主动连接 node.id 较小的节点
-     *
+     * 主动连接排在自身前面的所有机器
+     * 如配置有 10,11,12 三台机器，当前机器为12， 则当前机器需要主动连接10及11
+     * 这是为了防止机器间的重复连接
      * @return
      */
-    public boolean connectLowerIdMasterNodes() {
+    public boolean connectOtherControllerServers() {
         List<ServerAddress> serverAddresses = Configuration.getInstance().getBeforeControllerAddress();
         if (serverAddresses == null) {
             return true;
@@ -82,38 +82,38 @@ public class ServerNetworkManager extends NetworkManager {
     }
 
     /**
-     * 等待 node.id 比当前节点 node.id 大的master节点连接
+     * 等待 node.id 比当前节点 node.id 大的 controller 节点连接
      */
-    public void waitGreaterIdMasterNodeConnect() {
+    public void listenInternalPortAndWaitConnect() {
         new ServerConnectionListener(this).start();
     }
 
     /**
      * 等待成功连接其他所有节点
      */
-    public void waitAllTheOtherNodesConnected() {
+    public void waitAllTheOtherControllerConnected() {
         while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING) {
 
             boolean allTheOtherNodesConnected = true;
-            List<String> allTheOtherNodeIds = Configuration.getInstance().getAllTheOtherNodeIds();
+            List<String> allTheOtherNodeIds = Configuration.getInstance().getAllTheOtherControllerNodeIds();
             if (CollectionUtil.notEmpty(allTheOtherNodeIds)) {
                 for (String nodeId : allTheOtherNodeIds) {
-                    if (!remoteMasterNodeSockets.containsKey(nodeId)) {
+                    if (!remoteServerSockets.containsKey(nodeId)) {
                         allTheOtherNodesConnected = false;
                         break;
                     }
                 }
                 if (allTheOtherNodesConnected) {
-                    log.info("established connection with all the other master nodes.");
+                    log.info("established connection with all the other controller nodes.");
                     break;
                 }
             }
-            List<String> reminds = allTheOtherNodeIds.stream().filter(a -> !remoteMasterNodeSockets.containsKey(a)).collect(Collectors.toList());
-            log.info("waiting for establishing connection with all the other master nodes: {}", reminds);
+            List<String> reminds = allTheOtherNodeIds.stream().filter(a -> !remoteServerSockets.containsKey(a)).collect(Collectors.toList());
+            log.info("waiting for establishing connection with all the other controller nodes: {}", reminds);
             try {
                 Thread.sleep(CHECK_ALL_OTHER_NODES_CONNECT_INTERVAL);
             } catch (InterruptedException e) {
-                log.error("thread interrupted when check all the other master nodes connection status", e);
+                log.error("thread interrupted when check all the other controller nodes connection status", e);
             }
         }
     }
@@ -137,38 +137,29 @@ public class ServerNetworkManager extends NetworkManager {
 
     public MessageBase takeResponseMessage(MessageType messageType){
         try {
-            return masterReceiveQueues.get(messageType.getValue()).take();
+            return receiveQueues.get(messageType.getValue()).take();
         }catch (Exception ex){
-            log.error("take master message from receive queue failed.", ex);
+            log.error("take message from receive queue failed.", ex);
             return null;
         }
     }
 
     public int countResponseMessage(MessageType messageType){
-        BlockingQueue<MessageBase> queue = masterReceiveQueues.get(messageType.getValue());
+        BlockingQueue<MessageBase> queue = receiveQueues.get(messageType.getValue());
         if(queue == null){
             return 0;
         }
         return queue.size();
     }
 
-    public MessageBase takeSlaveMessage(int nodeId, MessageType messageType){
-        try {
-            return slaveReceiveQueues.get(nodeId).get(messageType.getValue()).take();
-        }catch (Exception ex){
-            log.error("take slave message from receive queue failed.", ex);
-            return null;
-        }
-    }
-
     public void addRemoteNodeSocket(String remoteNodeId, Socket socket) {
         log.info("add remote node socket, remote node id: {}, address: {}", remoteNodeId, socket.getRemoteSocketAddress());
-        this.remoteMasterNodeSockets.put(remoteNodeId, socket);
+        this.remoteServerSockets.put(remoteNodeId, socket);
     }
 
     private boolean connectControllerNode(ServerAddress remoteServerAddress) {
 
-        log.info("connecting lower node id master node {}:{}", remoteServerAddress.getHost(), remoteServerAddress.getInternalPort());
+        log.info("connecting other node {}", remoteServerAddress.getNodeId());
 
         boolean fatalError = false;
         int retries = 0;
@@ -181,7 +172,7 @@ public class ServerNetworkManager extends NetworkManager {
                 socket.setReuseAddress(true);
                 socket.connect(endpoint, CONNECT_TIMEOUT);
 
-                // 将当前节点信息发送给其他master节点
+                // 将当前节点信息发送给其他 server 节点
                 if(!sendCurrentNodeInfo(socket)){
                     fatalError = true;
                     break;
@@ -193,20 +184,20 @@ public class ServerNetworkManager extends NetworkManager {
                     break;
                 }
 
-                addRemoteMasterNode(remoteServer);
+                addRemoteServerNode(remoteServer);
 
                 // 维护当前连接
                 addRemoteNodeSocket(remoteServerAddress.getNodeId(), socket);
 
                 // 为网络连接启动读写IO线程
-                startMasterIOThreads(remoteServerAddress.getNodeId(), socket);
+                startServerIOThreads(remoteServerAddress.getNodeId(), socket);
                 return true;
             } catch (IOException ex) {
 
-                log.error("connect master node {} error", remoteServerAddress.getNodeId());
+                log.error("connect controller {} error", remoteServerAddress.getNodeId());
                 retries++;
                 if (retries <= DEFAULT_RETRIES) {
-                    log.error("this is {} times retry to connect other master node {}.",
+                    log.error("this is {} times retry to connect other controller node {}.",
                             retries, remoteServerAddress.getNodeId());
                 }
             }
@@ -218,47 +209,29 @@ public class ServerNetworkManager extends NetworkManager {
             return false;
         }
 
-        if (!retryConnectMasterNodes.contains(remoteServerAddress)) {
-            retryConnectMasterNodes.add(remoteServerAddress);
-            log.warn("connect to master node {} failed, add it into retry connect master node list.",
+        if (!retryConnectcontrollers.contains(remoteServerAddress)) {
+            retryConnectcontrollers.add(remoteServerAddress);
+            log.warn("connect to controller node {} failed, add it into retry connect controller node list.",
                     remoteServerAddress.getNodeId());
         }
         return false;
     }
 
-    public void startMasterIOThreads(String remoteNodeId, Socket socket) {
+    public void startServerIOThreads(String remoteNodeId, Socket socket) {
 
         LinkedBlockingQueue<Message> sendQueue = new LinkedBlockingQueue<>();
         // 初始化发送请求队列
         sendQueues.put(remoteNodeId, sendQueue);
 
         for (MessageType messageType : MessageType.values()){
-            masterReceiveQueues.put(messageType.getValue(), new LinkedBlockingQueue<>());
+            receiveQueues.put(messageType.getValue(), new LinkedBlockingQueue<>());
         }
 
         new ServerWriteThread(socket, sendQueue).start();
-        new ServerReadThread(socket, masterReceiveQueues).start();
+        new ServerReadThread(socket, receiveQueues).start();
     }
 
-    public void startSlaveIOThreads(String remoteNodeId, Socket socket) {
-
-        LinkedBlockingQueue<Message> sendQueue = new LinkedBlockingQueue<>();
-        // 初始化发送请求队列
-        sendQueues.put(remoteNodeId, sendQueue);
-
-        // 请求类型 -> 响应
-        Map<Integer, LinkedBlockingQueue<MessageBase>> slaveReceiveQueue = new ConcurrentHashMap<>();
-        for (MessageType messageType : MessageType.values()){
-            slaveReceiveQueue.put(messageType.getValue(), new LinkedBlockingQueue<>());
-        }
-        // 初始化接收队列
-        slaveReceiveQueues.put(remoteNodeId, slaveReceiveQueue);
-
-        new ServerWriteThread(socket, sendQueue).start();
-        new ServerReadThread(socket, slaveReceiveQueue).start();
-    }
-
-    class RetryConnectMasterNodeThread extends Thread {
+    class RetryConnectServerThread extends Thread {
         @Override
         public void run() {
             while (NodeStatus.RUNNING == NodeStatusManager.getInstance().getNodeStatus()) {
@@ -270,23 +243,31 @@ public class ServerNetworkManager extends NetworkManager {
 
                 // 重试连接, 连接成功后移除相关节点
                 List<ServerAddress> retrySuccessAddresses = new ArrayList<>();
-                for (ServerAddress serverAddress : retryConnectMasterNodes) {
-                    log.info("scheduled retry connect master node {}.", serverAddress.getNodeId());
+                for (ServerAddress serverAddress : retryConnectcontrollers) {
+                    log.info("scheduled retry connect controller node {}.", serverAddress.getNodeId());
                     if (connectControllerNode(serverAddress)) {
-                        log.info("scheduled retry connect master node success {}.", serverAddress.getNodeId());
+                        log.info("scheduled retry connect controller node success {}.", serverAddress.getNodeId());
                         retrySuccessAddresses.add(serverAddress);
                     }
                 }
 
                 for (ServerAddress address : retrySuccessAddresses) {
-                    retryConnectMasterNodes.remove(address);
+                    retryConnectcontrollers.remove(address);
                 }
             }
         }
     }
 
-    public void addRemoteMasterNode(RemoteServer remoteServer) {
+    public void addRemoteServerNode(RemoteServer remoteServer) {
         remoteNodeManager.addRemoteServerNode(remoteServer);
+        // 更新Configuration实例
+        Configuration configuration = Configuration.getInstance();
+
+        if (configuration.getControllerServers().containsKey(remoteServer.getNodeId())) {
+            ServerAddress serverAddress = configuration.getControllerServers().get(remoteServer.getNodeId());
+            serverAddress.setClientHttpPort(remoteServer.getClientHttpPort());
+            serverAddress.setClientTcpPort(remoteServer.getClientTcpPort());
+        }
     }
 
 }

@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.core;
+package org.hiraeth.govern.server.network;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

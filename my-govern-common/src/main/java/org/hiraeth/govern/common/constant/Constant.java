@@ -26,7 +26,6 @@ public class Constant {
     public static final String NODE_CLIENT_TCP_PORT = "node.client.tcp.port";
 
     // 客户端配置
-    public static final String GOVERN_SERVERS = "govern.servers";
     public static final String SERVICE_NAME = "service.name";
 
     public static final int REQUEST_HEADER_LENGTH = 4;

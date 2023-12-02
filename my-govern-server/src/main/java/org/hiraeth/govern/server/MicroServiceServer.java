@@ -2,8 +2,9 @@ package org.hiraeth.govern.server;
 
 import com.beust.jcommander.JCommander;
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.common.domain.ConfigurationException;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.config.ConfigurationException;
+import org.hiraeth.govern.server.core.ServerInstance;
 import org.hiraeth.govern.server.entity.NodeStatus;
 import org.hiraeth.govern.server.core.NodeStatusManager;
 
@@ -15,7 +16,7 @@ import org.hiraeth.govern.server.core.NodeStatusManager;
  * @date: 2023/11/27 11:54
  */
 @Slf4j
-public class GovernServer {
+public class MicroServiceServer {
 
     private static final int SHUTDOWN_CHECK_INTERVAL = 500;
 
@@ -51,7 +52,7 @@ public class GovernServer {
     }
 
     private static void startNodeServer() {
-        new MicroServer().start();
+        new ServerInstance().start();
     }
 
     private void waitForShutdown() throws InterruptedException {

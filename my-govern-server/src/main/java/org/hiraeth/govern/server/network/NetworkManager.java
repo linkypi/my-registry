@@ -1,6 +1,7 @@
-package org.hiraeth.govern.server.core;
+package org.hiraeth.govern.server.network;
 
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.RemoteServer;
 
@@ -18,17 +19,12 @@ import java.nio.ByteBuffer;
 @Slf4j
 public class NetworkManager {
 
-    /**
-     * 向master机器发送自身 nodeId
-     * @param socket
-     * @return
-     */
     public static boolean sendCurrentNodeInfo(Socket socket) {
         Configuration configuration = Configuration.getInstance();
-        String nodeId = configuration.getNodeId();
+        ServerAddress serverAddress = configuration.getCurrentNodeAddress();
         boolean isControllerCandidate = configuration.isControllerCandidate();
 
-        RemoteServer remoteServer = new RemoteServer(nodeId, isControllerCandidate);
+        RemoteServer remoteServer = new RemoteServer(serverAddress, isControllerCandidate);
         ByteBuffer buffer = remoteServer.toBuffer();
 
         DataOutputStream outputStream = null;
@@ -38,15 +34,15 @@ public class NetworkManager {
             outputStream.write(buffer.array());
             outputStream.flush();
         }catch (IOException ex){
-            log.error("send self node info to other master node failed.", ex);
+            log.error("send self node info to other server node failed.", ex);
             try {
                 socket.close();
             }catch (IOException e){
-                log.error("close socket failed when sending self node info to other master node.", e);
+                log.error("close socket failed when sending self node info to other server node.", e);
             }
             return false;
         }catch (Exception ex){
-            log.error("send self node info to other master node failed.", ex);
+            log.error("send self node info to other server node failed.", ex);
         }
         return true;
     }

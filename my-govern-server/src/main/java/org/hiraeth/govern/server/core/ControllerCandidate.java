@@ -6,6 +6,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.*;
+import org.hiraeth.govern.server.network.ServerNetworkManager;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -247,7 +248,7 @@ public class ControllerCandidate {
             // 大多数节点已确认选举结果, 进入领导阶段
             String nodeId = Configuration.getInstance().getNodeId();
             if (Objects.equals(nodeId, electionResult.getControllerId()) && confirmList.size() >= remoteNodeManager.getQuorum()) {
-                log.info("quorum master nodes has confirmed current election result: {}.", JSON.toJSONString(electionResult));
+                log.info("quorum controller nodes has confirmed current election result: {}.", JSON.toJSONString(electionResult));
 
                 // 昭告天下, 全国已确认解放, 朕已登基
                 String controllerId = remoteResultAck.getControllerId();
@@ -258,7 +259,7 @@ public class ControllerCandidate {
                 for (RemoteServer remoteServer : remoteNodeManager.getOtherControllerCandidates()) {
                     serverNetworkManager.sendRequest(remoteServer.getNodeId(), message.toMessage());
                 }
-                log.info("election has finished, all the other master nodes has been notified.");
+                log.info("election has finished, all the other controller nodes has been notified.");
 
                 finishedVoting();
                 return true;
@@ -320,7 +321,7 @@ public class ControllerCandidate {
         // 判断是否存在相同节点的投票, 若存在则保留轮次较大的一次投票
         Optional<Vote> existVote = votes.stream().filter(a -> Objects.equals(a.getFromNodeId(), vote.getFromNodeId())).findFirst();
         if (existVote.isPresent()) {
-            log.info("the same master node {} voting exist, select the large round: {}", vote.getFromNodeId(), JSON.toJSONString(vote));
+            log.info("the same controller node {} voting exist, select the large round: {}", vote.getFromNodeId(), JSON.toJSONString(vote));
             existVote.get().setRound(vote.getRound());
         } else {
             // 对收到的选票进行归票

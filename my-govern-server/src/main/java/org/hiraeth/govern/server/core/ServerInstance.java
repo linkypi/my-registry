@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server;
+package org.hiraeth.govern.server.core;
 
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
@@ -7,6 +7,8 @@ import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.core.*;
 import org.hiraeth.govern.server.entity.*;
 import org.hiraeth.govern.server.core.NodeStatusManager;
+import org.hiraeth.govern.server.network.NIOServer;
+import org.hiraeth.govern.server.network.ServerNetworkManager;
 
 import java.util.Map;
 import java.util.Objects;
@@ -17,7 +19,7 @@ import java.util.Objects;
  * @date: 2023/11/27 17:27
  */
 @Slf4j
-public class MicroServer {
+public class ServerInstance {
 
     private ServerNetworkManager serverNetworkManager;
     /**
@@ -32,15 +34,15 @@ public class MicroServer {
 
     private SlotManager slotManager;
 
-    private ClientNIOServer clientNIOServer;
+    private org.hiraeth.govern.server.network.NIOServer NIOServer;
 
 
-    public MicroServer(){
+    public ServerInstance(){
         this.remoteNodeManager = new RemoteNodeManager();
         this.serverNetworkManager = new ServerNetworkManager(remoteNodeManager);
         this.slotManager = new SlotManager();
-        this.clientNIOServer = new ClientNIOServer(remoteNodeManager);
-//        new DetectBlockingQueueThread(masterNetworkManager).start();
+        this.NIOServer = new NIOServer(remoteNodeManager);
+//        new DetectBlockingQueueThread(NetworkManager).start();
     }
 
     class DetectBlockingQueueThread extends Thread{
@@ -68,39 +70,39 @@ public class MicroServer {
     public void start() {
 
         Configuration configuration = Configuration.getInstance();
-        RemoteServer remoteServer = new RemoteServer(configuration.getNodeId(), configuration.isControllerCandidate());
+        RemoteServer remoteServer = new RemoteServer(configuration.getServerAddress(), configuration.isControllerCandidate());
         remoteNodeManager.addRemoteServerNode(remoteServer);
 
-        // 启动线程监听 id 比当前节点id 大的master节点的连接请求
-        serverNetworkManager.waitGreaterIdMasterNodeConnect();
-        // 主动连接 id 比当前节点id 较小的master节点
-        if(!serverNetworkManager.connectLowerIdMasterNodes()){
+        // 启动线程监听
+        serverNetworkManager.listenInternalPortAndWaitConnect();
+        // 主动连接其他 controller.candidate.servers
+        if(!serverNetworkManager.connectOtherControllerServers()){
             return;
         }
-        // 等待其他master节点都连接完成
-        serverNetworkManager.waitAllTheOtherNodesConnected();
-
-        // 投票选举 Controller
+        // 投票选举 Controller Leader
         boolean isControllerCandidate = configuration.isControllerCandidate();
         if(isControllerCandidate) {
+            // 等待其他controller节点都连接完成
+            serverNetworkManager.waitAllTheOtherControllerConnected();
+
             this.controllerCandidate = new ControllerCandidate(serverNetworkManager, remoteNodeManager);
             ElectionResult electionResult = controllerCandidate.voteForControllerElection();
 
             ElectionStage.setStatus(ElectionStage.ELStage.LEADING);
             String leaderId = electionResult.getControllerId();
-            MasterRole masterRole = MasterRole.Candidate;
+            ServerRole serverRole = ServerRole.Candidate;
             String currentNodeId = Configuration.getInstance().getNodeId();
             if (Objects.equals(currentNodeId, leaderId)) {
-                masterRole = MasterRole.Controller;
+                serverRole = ServerRole.Controller;
                 log.info("leader start on current node, epoch {} !!!", electionResult.getEpoch());
             }
-            electionResult.setMasterRole(masterRole);
+            electionResult.setServerRole(serverRole);
 
             // update current node status
             NodeStatusManager nodeStatusManager = NodeStatusManager.getInstance();
             nodeStatusManager.updateStatus(electionResult, ElectionStage.ELStage.LEADING);
 
-            if(masterRole == MasterRole.Controller){
+            if(serverRole == ServerRole.Controller){
                 Controller controller = new Controller(remoteNodeManager, serverNetworkManager);
                 Map<String, SlotRang> integerSlotRangMap = controller.allocateSlots();
                 nodeStatusManager.setSlots(integerSlotRangMap);
@@ -110,7 +112,7 @@ public class MicroServer {
             }
         }
 
-        clientNIOServer.start();
+        NIOServer.start();
 
         log.info("server has started now !!!");
     }

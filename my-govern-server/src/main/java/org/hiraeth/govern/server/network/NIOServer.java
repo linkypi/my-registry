@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server;
+package org.hiraeth.govern.server.network;
 
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
@@ -7,8 +7,8 @@ import org.hiraeth.govern.common.domain.Response;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.server.core.RemoteNodeManager;
-import org.hiraeth.govern.server.core.ClientConnectManager;
-import org.hiraeth.govern.server.core.ClientConnection;
+import org.hiraeth.govern.server.network.ClientConnectManager;
+import org.hiraeth.govern.server.network.ClientConnection;
 import org.hiraeth.govern.server.core.ClientRequestHandler;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import java.util.concurrent.LinkedBlockingDeque;
  * @date: 2023/11/30 17:56
  */
 @Slf4j
-public class ClientNIOServer {
+public class NIOServer {
 
     private Selector selector;
     private ServerSocketChannel serverSocketChannel;
@@ -39,7 +39,7 @@ public class ClientNIOServer {
 
     private Map<String, LinkedBlockingDeque<Response>> responseQueues = new ConcurrentHashMap<>();
 
-    public ClientNIOServer(RemoteNodeManager remoteNodeManager) {
+    public NIOServer(RemoteNodeManager remoteNodeManager) {
         try {
             this.clientConnectManager = new ClientConnectManager();
             this.clientRequestHandler = new ClientRequestHandler(remoteNodeManager);
@@ -63,7 +63,7 @@ public class ClientNIOServer {
             serverSocketChannel.configureBlocking(false);
             serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
-            log.info("nio server binding to port {}", tcpPort);
+            log.info("nio server port binding {}", tcpPort);
 
             IOThread ioThread = new IOThread();
             ioThread.setDaemon(true);

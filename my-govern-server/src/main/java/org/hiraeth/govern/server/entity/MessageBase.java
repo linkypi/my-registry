@@ -74,6 +74,10 @@ public class MessageBase {
     }
 
     protected void writeStr(String val){
+        MessageBase.writeStr(buffer, val);
+    }
+
+    public static void writeStr(ByteBuffer buffer, String val){
         if(StringUtil.isEmpty(val)){
             buffer.putInt(0);
             return;
@@ -83,22 +87,16 @@ public class MessageBase {
         buffer.put(bytes);
     }
 
-    protected int getStrLength(String val) {
+    protected String readStr() {
+        return MessageBase.readStr(buffer);
+    }
+
+    public static int getStrLength(String val) {
         if (StringUtil.isEmpty(val)) {
             return 0;
         }
         byte[] bytes = val.getBytes();
         return bytes.length;
-    }
-
-    protected String readStr() {
-        int length = buffer.getInt();
-        if (length == 0) {
-            return "";
-        }
-        byte[] bytes = new byte[length];
-        buffer.get(bytes);
-        return new String(bytes);
     }
 
     public static String readStr(ByteBuffer buffer) {

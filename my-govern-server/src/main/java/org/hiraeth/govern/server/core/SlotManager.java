@@ -34,19 +34,19 @@ public class SlotManager {
         }
     }
 
-    public Map<String, SlotRang> calculateSlots(List<RemoteServer> otherRemoteMasterNodes) {
+    public Map<String, SlotRang> calculateSlots(List<RemoteServer> otherRemoteServerNodes) {
 
-        int totalMasters = otherRemoteMasterNodes.size() + 1;
+        int totalServers = otherRemoteServerNodes.size() + 1;
 
-        int slotsPerNode = SLOTS_COUNT / totalMasters;
-        int reminds = SLOTS_COUNT - slotsPerNode * totalMasters;
+        int slotsPerNode = SLOTS_COUNT / totalServers;
+        int reminds = SLOTS_COUNT - slotsPerNode * totalServers;
 
         // controller 多分配多余的槽位
         int controllerSlotsCount = slotsPerNode + reminds;
 
         int index = 0;
-        Map<String, SlotRang> slotsAllocation = new ConcurrentHashMap<>(totalMasters);
-        for (RemoteServer remoteServer : otherRemoteMasterNodes) {
+        Map<String, SlotRang> slotsAllocation = new ConcurrentHashMap<>(totalServers);
+        for (RemoteServer remoteServer : otherRemoteServerNodes) {
             slotsAllocation.put(remoteServer.getNodeId(), new SlotRang(index, index + slotsPerNode - 1));
             index += slotsPerNode;
         }

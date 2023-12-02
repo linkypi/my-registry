@@ -1,4 +1,4 @@
-package com.hiraeth.govern.client;
+package org.hiraeth.govern.server.network;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -16,17 +16,17 @@ import java.util.UUID;
 /**
  * @author: lynch
  * @description:
- * @date: 2023/12/1 1:24
+ * @date: 2023/11/30 20:29
  */
 @Getter
 @Setter
 @Slf4j
-public class ServerConnection extends MessageReader {
+public class ClientConnection extends MessageReader {
 
     private SelectionKey selectionKey;
     private String connectionId;
 
-    public ServerConnection(SelectionKey selectionKey, SocketChannel socketChannel){
+    public ClientConnection(SocketChannel socketChannel, SelectionKey selectionKey){
         this.selectionKey = selectionKey;
         this.socketChannel = socketChannel;
         this.connectionId = UUID.randomUUID().toString().replace("-","");
@@ -34,10 +34,10 @@ public class ServerConnection extends MessageReader {
 
     @Override
     protected Object build(ByteBuffer buffer) {
-        return BaseResponse.parseFromBuffer(buffer);
+        return BaseRequest.parseFromBuffer(buffer);
     }
 
-    public BaseResponse doReadIO() throws IOException {
-        return (BaseResponse)super.doReadIOInternal();
+    public BaseRequest doReadIO() throws IOException {
+        return (BaseRequest)super.doReadIOInternal();
     }
 }

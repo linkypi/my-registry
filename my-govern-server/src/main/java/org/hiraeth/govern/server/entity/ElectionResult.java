@@ -18,7 +18,7 @@ import java.nio.ByteBuffer;
 public class ElectionResult extends MessageBase{
 
     // 角色, 无需远程传输
-    private MasterRole masterRole;
+    private ServerRole serverRole;
 
     public ElectionResult() {
         super();

@@ -42,7 +42,7 @@ public class ElectionStage {
         return getInstance().status;
     }
 
-    public static void setStatus(ELStage masterRole){
-        getInstance().status = masterRole;
+    public static void setStatus(ELStage stage){
+        getInstance().status = stage;
     }
 }

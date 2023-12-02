@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.config;
+package org.hiraeth.govern.common.domain;
 
 /**
  * @author: leo

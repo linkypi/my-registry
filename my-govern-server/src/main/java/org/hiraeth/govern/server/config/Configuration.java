@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.constant.Constant;
+import org.hiraeth.govern.common.domain.ConfigurationException;
 import org.hiraeth.govern.common.util.StringUtil;
 import org.hiraeth.govern.common.domain.ServerAddress;
 
@@ -38,10 +39,6 @@ public class Configuration {
 
     private boolean isControllerCandidate;
 
-    // slave 节点参数
-    private String masterServerAddress;
-    private int masterServerPort;
-
     private String dataDir;
     private String logDir;
     private String nodeIP;
@@ -49,6 +46,8 @@ public class Configuration {
     private int nodeClientHttpPort;
     private int nodeClientTcpPort;
     private int clusterNodeCount;
+
+    private ServerAddress serverAddress;
 
     private Map<String, ServerAddress> controllerServers = new HashMap<>();
 
@@ -99,6 +98,8 @@ public class Configuration {
             this.nodeClientHttpPort = parseInt(configProperties, NODE_CLIENT_HTTP_PORT);
             this.nodeClientTcpPort = parseInt(configProperties, NODE_CLIENT_TCP_PORT);
             this.clusterNodeCount = parseInt(configProperties, CLUSTER_NODE_COUNT);
+
+            serverAddress = new ServerAddress(nodeIP, nodeInternalPort, nodeClientHttpPort, nodeClientTcpPort);
 
             for (String key : controllerServers.keySet()) {
                 ServerAddress address = controllerServers.get(key);
@@ -201,7 +202,10 @@ public class Configuration {
     }
 
     public ServerAddress getCurrentNodeAddress() {
-        return controllerServers.get(getNodeId());
+        if(isControllerCandidate) {
+            return controllerServers.get(getNodeId());
+        }
+        return serverAddress;
     }
 
     public String getNodeId() {
@@ -252,7 +256,7 @@ public class Configuration {
                 .collect(Collectors.toList());
     }
 
-    public List<String> getAllTheOtherNodeIds() {
+    public List<String> getAllTheOtherControllerNodeIds() {
         return controllerServers.values().stream().map(ServerAddress::getNodeId)
                 .filter(a -> !Objects.equals(a, getNodeId())).collect(Collectors.toList());
     }

@@ -5,7 +5,7 @@ package org.hiraeth.govern.server.entity;
  * @description:
  * @date: 2023/11/28 16:07
  */
-public enum MasterRole {
+public enum ServerRole {
     /**
      * 控制器角色
      */

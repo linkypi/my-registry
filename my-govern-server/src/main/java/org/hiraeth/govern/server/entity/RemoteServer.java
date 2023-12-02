@@ -2,6 +2,7 @@ package org.hiraeth.govern.server.entity;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.domain.ServerAddress;
 
 import java.nio.ByteBuffer;
 
@@ -13,6 +14,7 @@ import java.nio.ByteBuffer;
 @Getter
 @Setter
 public class RemoteServer {
+    // 由 IP + internalPort 组成
     private String nodeId;
 
     /**
@@ -20,30 +22,54 @@ public class RemoteServer {
      */
     private boolean isControllerCandidate;
 
-    public RemoteServer(String nodeId, boolean isCandidate) {
-        this.nodeId = nodeId;
+    private String host;
+    private int clientHttpPort;
+    private int clientTcpPort;
+    private int internalPort;
+
+    public RemoteServer(){}
+
+    public RemoteServer(ServerAddress serverAddress, boolean isCandidate) {
+        this.nodeId = serverAddress.getNodeId();
         this.isControllerCandidate = isCandidate;
+        this.clientTcpPort = serverAddress.getClientTcpPort();
+        this.clientHttpPort = serverAddress.getClientHttpPort();
+        this.internalPort = serverAddress.getInternalPort();
+        this.host = serverAddress.getHost();
     }
 
     public ByteBuffer toBuffer() {
-        byte[] bytes = nodeId.getBytes();
-        ByteBuffer buffer = ByteBuffer.allocate(20 + bytes.length);
+
+        int length = MessageBase.getStrLength(nodeId) + MessageBase.getStrLength(host);
+        ByteBuffer buffer = ByteBuffer.allocate(28 + length);
         buffer.putInt(MessageType.NodeInfo.getValue());
-        buffer.putInt(bytes.length);
-        buffer.put(bytes);
         buffer.putInt(isControllerCandidate ? 1 : 0);
+        buffer.putInt(clientHttpPort);
+        buffer.putInt(clientTcpPort);
+        buffer.putInt(internalPort);
+        MessageBase.writeStr(buffer, nodeId);
+        MessageBase.writeStr(buffer, host);
         return buffer;
     }
 
     public static RemoteServer parseFrom(ByteBuffer buffer) {
-        int requestType = buffer.getInt();
-        if (MessageType.NodeInfo.getValue() == requestType) {
-            int nodeIdLen = buffer.getInt();
-            byte[] bytes = new byte[nodeIdLen];
-            buffer.get(bytes);
-            String nodeId = new String(bytes);
+        int messageType = buffer.getInt();
+        if (MessageType.NodeInfo.getValue() == messageType) {
             int isCandidate = buffer.getInt();
-            return new RemoteServer(nodeId, isCandidate == 1);
+            int clientHttpPort = buffer.getInt();
+            int clientTcpPort = buffer.getInt();
+            int internPort = buffer.getInt();
+            String nodeId = MessageBase.readStr(buffer);
+            String host = MessageBase.readStr(buffer);
+
+            RemoteServer remoteServer = new RemoteServer();
+            remoteServer.setHost(host);
+            remoteServer.setNodeId(nodeId);
+            remoteServer.setControllerCandidate(isCandidate == 1);
+            remoteServer.setClientHttpPort(clientHttpPort);
+            remoteServer.setClientTcpPort(clientTcpPort);
+            remoteServer.setInternalPort(internPort);
+            return remoteServer;
         }
         return null;
     }

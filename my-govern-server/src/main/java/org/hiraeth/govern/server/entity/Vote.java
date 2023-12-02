@@ -44,7 +44,7 @@ public class Vote extends MessageBase{
     }
 
     public ByteBuffer toBuffer() {
-        int strLength = getStrLength(targetNodeId);
+        int strLength = MessageBase.getStrLength(targetNodeId);
         return convertToBuffer(8 + strLength);
     }
 

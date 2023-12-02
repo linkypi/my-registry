@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package govern;
-option java_package = "org.hiraeth.govern.server.node.master.request";
+option java_package = "org.hiraeth.govern.server.request";
 option java_outer_classname = "VoteRequestProto";
 
 message VoteRequest{

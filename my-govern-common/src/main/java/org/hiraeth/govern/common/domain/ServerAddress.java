@@ -29,12 +29,24 @@ public class ServerAddress {
         return host + ":" + internalPort;
     }
 
+    public String getClientNodeId() {
+        return host + ":" + clientTcpPort;
+    }
+
     public ServerAddress(){
     }
 
     public ServerAddress(String address) {
         parseAddress(address);
     }
+
+    public ServerAddress(String ip, int internalPort, int clientHttpPort, int clientTcpPort) {
+        this.host = ip;
+        this.internalPort = internalPort;
+        this.clientHttpPort = clientHttpPort;
+        this.clientTcpPort = clientTcpPort;
+    }
+
 
     public void parseAddress(String address){
         // 127.0.0.1:2156
