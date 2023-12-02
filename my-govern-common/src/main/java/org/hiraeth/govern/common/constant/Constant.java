@@ -30,6 +30,15 @@ public class Constant {
     public static final String SERVICE_INSTANCE_PORT = "service.instance.port";
 
     public static final String HEARTBEAT_INTERVAL = "heartbeat.interval.second";
+    public static final String HEARTBEAT_CHECK_INTERVAL = "heartbeat.check.interval";
+    // 心跳超时时间
+    public static final String HEARTBEAT_TIMEOUT_PERIOD = "heartbeat.timeout.period";
+
+    public static final int DEFAULT_HEARTBEAT_CHECK_INTERVAL = 3;
+    // 超过该事件仍未连接到则移除实例
+    public static final int DEFAULT_HEARTBEAT_TIMEOUT_PERIOD = 30;
 
     public static final int REQUEST_HEADER_LENGTH = 4;
+
+
 }

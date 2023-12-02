@@ -50,9 +50,9 @@ public class HeartbeatThread extends Thread{
                     Thread.sleep(REQUEST_WAIT_SLEEP_INTERVAL);
                 }
 
-                log.info("heartbeat success.");
+                log.info("heartbeat success, instance: {}/{}/{}.", serviceName, serviceInstanceIp, serviceInstancePort);
 
-                Thread.sleep(heartbeatInterval * 1000);
+                Thread.sleep(heartbeatInterval * 1000L);
             }catch (Exception ex){
                 log.error("heartbeat thread occur error", ex);
             }

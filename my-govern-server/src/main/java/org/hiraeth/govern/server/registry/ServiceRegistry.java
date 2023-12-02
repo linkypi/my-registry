@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.entity;
+package org.hiraeth.govern.server.registry;
 
 import org.hiraeth.govern.common.domain.ServiceInstance;
 
@@ -15,7 +15,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @date: 2023/12/2 16:11
  */
 public class ServiceRegistry {
-    private ServiceRegistry(){}
+    private ServiceRegistry(){
+        new HeartbeatThread().start();
+    }
 
     static class Singleton{
         private static final ServiceRegistry instance = new ServiceRegistry();
@@ -25,14 +27,27 @@ public class ServiceRegistry {
         return Singleton.instance;
     }
 
+    public Map<String, ServiceInstance> getServiceInstances(){
+        return serviceInstancesMap;
+    }
+
+    public Map<String, List<ServiceInstance>> getServiceRegistry(){
+        return serviceRegistrys;
+    }
+
     // 服务注册表
     private Map<String, List<ServiceInstance>> serviceRegistrys = new ConcurrentHashMap<>();
     // 服务实例集合
     private Map<String, ServiceInstance> serviceInstancesMap = new ConcurrentHashMap<>();
 
-    public void register(ServiceInstance instance){
-        List<ServiceInstance> list = serviceRegistrys.getOrDefault(instance.getServiceName(), new CopyOnWriteArrayList<>());
-        list.add(instance);
+    public void register(ServiceInstance instance) {
+        List<ServiceInstance> serviceInstances = serviceRegistrys.get(instance.getServiceName());
+        if (serviceInstances == null) {
+            serviceInstances = new CopyOnWriteArrayList<>();
+            serviceRegistrys.put(instance.getServiceName(), serviceInstances);
+        }
+        serviceInstances.add(instance);
+
         serviceInstancesMap.put(instance.getServiceInstanceId(), instance);
     }
 

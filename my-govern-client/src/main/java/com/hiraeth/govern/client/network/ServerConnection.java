@@ -8,6 +8,7 @@ import org.hiraeth.govern.common.domain.BaseRequest;
 import org.hiraeth.govern.common.domain.BaseResponse;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -32,6 +33,12 @@ public class ServerConnection extends MessageReader {
         this.socketChannel = socketChannel;
         this.connectionId = UUID.randomUUID().toString().replace("-","");
         this.address = socketChannel.getRemoteAddress().toString().replace("/", "");
+    }
+
+    public ServerConnection(SocketChannel socketChannel){
+        this.connectionId = UUID.randomUUID().toString().replace("-","");
+        InetAddress inetAddress = socketChannel.socket().getInetAddress();
+        this.address = inetAddress.toString().replace("/","") +":"+ socketChannel.socket().getPort();
     }
 
     @Override

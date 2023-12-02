@@ -47,6 +47,8 @@ public class Configuration {
     private int nodeClientHttpPort;
     private int nodeClientTcpPort;
     private int clusterNodeCount;
+    private int heartbeatTimeoutPeriod;
+    private int heartbeatCheckInterval;
 
     private ServerAddress serverAddress;
 
@@ -99,6 +101,8 @@ public class Configuration {
             this.nodeClientHttpPort = CommonUtil.parseInt(configProperties, NODE_CLIENT_HTTP_PORT);
             this.nodeClientTcpPort = CommonUtil.parseInt(configProperties, NODE_CLIENT_TCP_PORT);
             this.clusterNodeCount = CommonUtil.parseInt(configProperties, CLUSTER_NODE_COUNT);
+            this.heartbeatTimeoutPeriod = CommonUtil.parseInt(configProperties, HEARTBEAT_TIMEOUT_PERIOD, DEFAULT_HEARTBEAT_TIMEOUT_PERIOD);
+            this.heartbeatCheckInterval = CommonUtil.parseInt(configProperties, HEARTBEAT_CHECK_INTERVAL, DEFAULT_HEARTBEAT_CHECK_INTERVAL);
 
             serverAddress = new ServerAddress(nodeIP, nodeInternalPort, nodeClientHttpPort, nodeClientTcpPort);
 

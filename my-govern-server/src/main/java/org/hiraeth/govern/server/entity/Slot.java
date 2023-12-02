@@ -3,6 +3,7 @@ package org.hiraeth.govern.server.entity;
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.domain.ServiceInstance;
+import org.hiraeth.govern.server.registry.ServiceRegistry;
 
 /**
  * @author: lynch

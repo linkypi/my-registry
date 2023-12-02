@@ -1,17 +1,18 @@
 package com.hiraeth.govern.client.network;
 
 import com.hiraeth.govern.client.ServiceInstance;
-import com.hiraeth.govern.client.network.ServerConnection;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.*;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -28,6 +29,7 @@ public class IOThread extends Thread {
     private ServiceInstance serviceInstance;
     private ServerConnectionManager serverConnectionManager;
     private ConcurrentHashMap<Long, BaseResponse> responses;
+    private BlockingQueue<ServerConnection> reconnectQueue = new LinkedBlockingQueue<>();
 
     public IOThread(ServiceInstance serviceInstance, ServerConnectionManager serverConnectionManager,
                     ConcurrentHashMap<Long, BaseResponse> responses) {
@@ -36,11 +38,24 @@ public class IOThread extends Thread {
         this.requestQueue = serviceInstance.getRequestQueue();
         this.serverConnectionManager = serverConnectionManager;
         this.responses = responses;
+
+        new Thread(() -> {
+            while (true) {
+                try {
+                    ServerConnection connection = reconnectQueue.take();
+                    reconnectServer(connection);
+
+                } catch (Exception ex) {
+                    log.error("reconnect server occur error", ex);
+                }
+            }
+        }).start();
     }
 
     @Override
     public void run() {
         ServerConnection connection = null;
+        SocketChannel socketChannel = null;
         while (true) {
             try {
                 int readyChannels = selector.select(300);
@@ -57,7 +72,7 @@ public class IOThread extends Thread {
                     SelectionKey selectionKey = iterator.next();
                     iterator.remove();
 
-                    SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
+                    socketChannel = (SocketChannel) selectionKey.channel();
                     connection = (ServerConnection) selectionKey.attachment();
                     if ((selectionKey.readyOps() & SelectionKey.OP_WRITE) != 0) {
                         sendRequest(socketChannel, connection);
@@ -69,14 +84,29 @@ public class IOThread extends Thread {
                         handleConnect(socketChannel, selectionKey);
                     }
                 }
-            } catch (IOException ex) {
+            }
+            catch(ConnectException ex){
+                try {
+                    log.error("connect exception occur.", ex);
+                    if (connection == null) {
+                        connection = new ServerConnection(socketChannel);
+                    }else{
+                        connection.getSocketChannel().close();
+                        log.error("server disconnected, connection id: {}", connection.getConnectionId());
+                    }
+                    reconnectQueue.add(connection);
+
+                }catch (Exception e){
+                   log.error("handle connection exception occur error", e);
+                }
+            }
+            catch (IOException ex) {
                 // 客户端主动断开连接
                 if (connection != null) {
-                    reconnectionServer(connection);
+                    reconnectQueue.add(connection);
                 } else {
                     log.error("io exception occur.", ex);
                 }
-
             } catch (Exception ex) {
                 log.error("network IO occur error", ex);
             }
@@ -84,27 +114,24 @@ public class IOThread extends Thread {
 
     }
 
-    private void handleConnect(SocketChannel socketChannel, SelectionKey selectionKey){
-        try {
-            if (socketChannel.finishConnect()) {
-                selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+    private void handleConnect(SocketChannel socketChannel, SelectionKey selectionKey) throws IOException {
 
-                ServerConnection connection = new ServerConnection(selectionKey, socketChannel);
-                serverConnectionManager.add(connection);
+        if (socketChannel.finishConnect()) {
+            selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
 
-                selectionKey.attach(connection);
-                requestQueue.put(connection.getConnectionId(), new LinkedBlockingQueue<>());
+            ServerConnection connection = new ServerConnection(selectionKey, socketChannel);
+            serverConnectionManager.add(connection);
 
-                log.info("established connection with server: {}, connection id: {}",
-                        socketChannel.getRemoteAddress(), connection.getConnectionId());
-            }
-        }catch (Exception ex){
-            log.error("handle connect occur error", ex);
+            selectionKey.attach(connection);
+            requestQueue.put(connection.getConnectionId(), new LinkedBlockingQueue<>());
+
+            log.info("established connection with server: {}, connection id: {}",
+                    socketChannel.getRemoteAddress(), connection.getConnectionId());
         }
     }
 
     private static final int RETIE_TIMES = 10;
-    private void reconnectionServer(ServerConnection connection) {
+    private void reconnectServer(ServerConnection connection) {
 
         serviceInstance.getServerConnectionManager().remove(connection);
         int retry = 1;
@@ -112,7 +139,7 @@ public class IOThread extends Thread {
         while (retry <= RETIE_TIMES) {
             try {
                 log.info("reconnection to remote server, retry times {}", retry);
-                serviceInstance.init();
+                serviceInstance.reconnect(connection);
                 break;
             } catch (Exception ex) {
                 log.error("reconnection remote server failed, retry time {}", retry, ex);
@@ -162,7 +189,7 @@ public class IOThread extends Thread {
         // 检查数据是否已经写完, 写完后移除
         if (!request.getBuffer().hasRemaining()) {
             queue.poll();
-            log.info("send request to server, type: {}, id: {}", request.getRequestType(), request.getRequestId());
+//            log.info("send request to server, type: {}, id: {}", request.getRequestType(), request.getRequestId());
         }
     }
 }

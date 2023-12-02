@@ -71,13 +71,30 @@ public class ServiceInstance {
      * 发送请求到controller候选节点获取slots数据
      */
     public void init() throws IOException {
-        server = chooseControllerCandidate();
-        controllerConnection = connectServer(server);
-        fetchMetaDataFromServer(controllerConnection.getConnectionId());
+        connectController();
+        registerCurrentInstance();
+    }
 
+    private void registerCurrentInstance() throws IOException {
         ServerAddress serverAddress = routeServer();
         routeServerConnection = connectServer(serverAddress);
         register();
+    }
+
+    private void connectController() throws IOException {
+        server = chooseControllerCandidate();
+        controllerConnection = connectServer(server);
+        fetchMetaDataFromServer(controllerConnection.getConnectionId());
+    }
+
+    public void reconnect(ServerConnection connection) throws IOException {
+
+        if (controllerConnection == null || connection.getAddress().equals(controllerConnection.getAddress())) {
+            connectController();
+        }
+        if (routeServerConnection == null || connection.getAddress().equals(routeServerConnection.getAddress())) {
+            registerCurrentInstance();
+        }
     }
 
     /**

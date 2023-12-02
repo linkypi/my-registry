@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Objects;
+
 /**
  * @author: lynch
  * @description:
@@ -17,6 +19,21 @@ public class ServiceInstance {
     private String serviceInstanceIp;
     private int serviceInstancePort;
     private volatile Long latestHeartbeatTime;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ServiceInstance that = (ServiceInstance) o;
+        return serviceInstancePort == that.serviceInstancePort
+                && serviceName.equals(that.serviceName)
+                && serviceInstanceIp.equals(that.serviceInstanceIp);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(serviceName, serviceInstanceIp, serviceInstancePort);
+    }
 
     public ServiceInstance(String serviceName, String serviceInstanceIp, int serviceInstancePort){
         this.serviceInstanceIp = serviceInstanceIp;

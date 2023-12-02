@@ -42,6 +42,23 @@ public class CommonUtil {
         return intValue;
     }
 
+    public static int parseInt(Properties configProperties, String arg, int defaultValue){
+        String value = "";
+        int intValue = 0;
+        try {
+            value = configProperties.getProperty(arg);
+            if (StringUtil.isEmpty(value)) {
+                return defaultValue;
+            }
+
+            intValue = Integer.parseInt(value);
+        }catch (Exception ex){
+            throw new IllegalArgumentException( "parameter " + arg +" is invalid "+ value);
+        }
+        log.debug("parameter {} = {}", arg, intValue);
+        return intValue;
+    }
+
     public static void writeStr(ByteBuffer buffer, String val){
         if(StringUtil.isEmpty(val)){
             buffer.putInt(0);

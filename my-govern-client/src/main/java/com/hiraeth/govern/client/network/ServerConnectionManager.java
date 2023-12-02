@@ -24,12 +24,6 @@ public class ServerConnectionManager {
         connections.put(connection.getAddress(), connection);
     }
     public void remove(ServerConnection connection){
-        try {
-            connection.getSocketChannel().close();
-            log.error("server disconnected, connection id: {}", connection.getConnectionId());
-        } catch (IOException e) {
-            log.error("close server socket channel occur error, connection id: {}", connection.getConnectionId());
-        }
         connections.remove(connection.getAddress());
     }
 
