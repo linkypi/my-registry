@@ -36,9 +36,9 @@ public class ServiceRegistry {
     }
 
     // 服务注册表
-    private Map<String, List<ServiceInstance>> serviceRegistrys = new ConcurrentHashMap<>();
+    private final Map<String, List<ServiceInstance>> serviceRegistrys = new ConcurrentHashMap<>();
     // 服务实例集合
-    private Map<String, ServiceInstance> serviceInstancesMap = new ConcurrentHashMap<>();
+    private final Map<String, ServiceInstance> serviceInstancesMap = new ConcurrentHashMap<>();
 
     public void register(ServiceInstance instance) {
         List<ServiceInstance> serviceInstances = serviceRegistrys.get(instance.getServiceName());

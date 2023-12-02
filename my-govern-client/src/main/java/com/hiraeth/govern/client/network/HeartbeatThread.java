@@ -47,6 +47,7 @@ public class HeartbeatThread extends Thread{
 
                 // server端处理心跳请求，返回响应
                 while(responses.get(heartbeatRequest.getRequestId()) == null) {
+                    responses.remove(heartbeatRequest.getRequestId());
                     Thread.sleep(REQUEST_WAIT_SLEEP_INTERVAL);
                 }
 

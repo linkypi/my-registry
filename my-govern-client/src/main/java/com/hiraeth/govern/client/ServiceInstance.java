@@ -77,13 +77,26 @@ public class ServiceInstance {
 
     private void registerCurrentInstance() throws IOException {
         ServerAddress serverAddress = routeServer();
+        // 判断是否已存在相同连接
+        if (controllerConnection != null && controllerConnection.getAddress().equals(serverAddress.getNodeId())) {
+            routeServerConnection = controllerConnection;
+        } else {
+            routeServerConnection = connectServer(server);
+        }
         routeServerConnection = connectServer(serverAddress);
         register();
     }
 
     private void connectController() throws IOException {
         server = chooseControllerCandidate();
-        controllerConnection = connectServer(server);
+
+        // 判断是否已存在相同连接
+        if (routeServerConnection != null && routeServerConnection.getAddress().equals(server.getNodeId())) {
+            controllerConnection = routeServerConnection;
+        } else {
+            controllerConnection = connectServer(server);
+        }
+
         fetchMetaDataFromServer(controllerConnection.getConnectionId());
     }
 
