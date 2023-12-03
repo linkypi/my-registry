@@ -3,6 +3,10 @@ package org.hiraeth.govern.common;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.common.domain.Message;
+import org.hiraeth.govern.common.domain.Request;
+import org.hiraeth.govern.common.domain.Response;
+import org.hiraeth.govern.common.domain.MessageType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -28,11 +32,12 @@ public class MessageReader {
     private ByteBuffer lengthBuffer = ByteBuffer.allocate(4);
     private ByteBuffer payloadBuffer = null;
 
-    protected Object build(ByteBuffer buffer) {
-        return null;
-    }
-
-    protected Object doReadIOInternal() throws IOException {
+    /**
+     * 首先读取头部消息长度，然后再读取实际消息
+     * @return
+     * @throws IOException
+     */
+    protected Message doReadIOInternal() throws IOException {
         try {
             if (!hasReadLen) {
                 socketChannel.read(lengthBuffer);
@@ -53,8 +58,7 @@ public class MessageReader {
             }
 
             if (!hasReadPayload) {
-                int read = socketChannel.read(payloadBuffer);
-//                log.info("read payload {} bytes.", read);
+                socketChannel.read(payloadBuffer);
 
                 // 数据没有读完, 返回继续等待
                 if (payloadBuffer.hasRemaining()) {
@@ -63,11 +67,23 @@ public class MessageReader {
                 hasReadPayload = true;
 
                 payloadBuffer.flip();
-                Object request = build(payloadBuffer);
+
+                int msgType = payloadBuffer.getInt();
+                MessageType messageType = MessageType.of(msgType);
+                Message message = null;
+                if(messageType == MessageType.REQUEST){
+                    message = Request.toRequest(payloadBuffer);
+                    message.setMessageType(MessageType.REQUEST);
+                }else if(messageType == MessageType.RESPONSE){
+                    message = Response.toResponse(payloadBuffer);
+                    message.setMessageType(MessageType.RESPONSE);
+                }else{
+                    log.error("unknown message type: {}.", msgType);
+                }
 
                 reset();
 
-                return request;
+                return message;
             }
         }catch (IOException ex){
             throw ex;

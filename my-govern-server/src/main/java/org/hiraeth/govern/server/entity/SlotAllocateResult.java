@@ -17,13 +17,13 @@ import java.util.Map;
  */
 @Getter
 @Setter
-public class SlotAllocateResult extends MessageBase {
+public class SlotAllocateResult extends ClusterBaseMessage {
 
     private Map<String, SlotRang> slots;
 
     public SlotAllocateResult(Map<String, SlotRang> slots) {
         super();
-        this.messageType = MessageType.AllocateSlots;
+        this.clusterMessageType = ClusterMessageType.AllocateSlots;
         this.slots = slots;
     }
 
@@ -38,12 +38,12 @@ public class SlotAllocateResult extends MessageBase {
         return super.convertToBuffer(bytes.length);
     }
 
-    public Message toMessage() {
+    public ClusterMessage toMessage() {
         ByteBuffer buffer = toBuffer();
-        return new Message(messageType, buffer.array());
+        return new ClusterMessage(clusterMessageType, buffer.array());
     }
 
-    public static SlotAllocateResult parseFrom(MessageBase messageBase) {
+    public static SlotAllocateResult parseFrom(ClusterBaseMessage messageBase) {
 
         ByteBuffer buffer = messageBase.getBuffer();
         int remind = buffer.remaining();

@@ -1,5 +1,6 @@
 package org.hiraeth.govern.common.util;
 
+import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
@@ -69,11 +70,22 @@ public class CommonUtil {
         buffer.put(bytes);
     }
 
+    public static void writeJsonString(ByteBuffer buffer, Object val){
+        byte[] bytes = JSON.toJSONString(val).getBytes();
+        buffer.putInt(bytes.length);
+        buffer.put(bytes);
+    }
+
     public static int getStrLength(String val) {
         if (StringUtil.isEmpty(val)) {
             return 0;
         }
         byte[] bytes = val.getBytes();
+        return bytes.length;
+    }
+
+    public static int getJsonStringLength(Object val) {
+        byte[] bytes = JSON.toJSONString(val).getBytes();
         return bytes.length;
     }
 

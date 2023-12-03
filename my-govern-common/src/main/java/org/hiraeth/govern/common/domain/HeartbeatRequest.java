@@ -15,20 +15,16 @@ import java.nio.ByteBuffer;
  */
 @Getter
 @Setter
-public class HeartbeatRequest extends BaseRequest{
+public class HeartbeatRequest extends Request {
     private String serviceName;
     private String serviceInstanceIp;
     private int serviceInstancePort;
+
     public HeartbeatRequest(){
+        super();
         this.requestType = RequestType.Heartbeat;
         this.requestId = SnowFlakeIdUtil.getNextId();
         this.timestamp = System.currentTimeMillis();
-    }
-
-    public Request toRequest() {
-        int length = CommonUtil.getStrLength(serviceName) + CommonUtil.getStrLength(serviceInstanceIp);
-        toBuffer(12 + length);
-        return new Request(requestType, requestId, buffer);
     }
 
     @Override
@@ -38,7 +34,12 @@ public class HeartbeatRequest extends BaseRequest{
         CommonUtil.writeStr(buffer, serviceInstanceIp);
     }
 
-    private static HeartbeatRequest getRegisterServiceRequest(ByteBuffer buffer, BaseRequest request) {
+    public void buildBuffer() {
+        int length = 12 + CommonUtil.getStrLength(serviceName) + CommonUtil.getStrLength(serviceInstanceIp);
+        buildBufferInternal(length);
+    }
+
+    private static HeartbeatRequest getRequest(ByteBuffer buffer, Request request) {
         int port = buffer.getInt();
         String serviceName = CommonUtil.readStr(buffer);
         String instanceIp = CommonUtil.readStr(buffer);
@@ -49,8 +50,8 @@ public class HeartbeatRequest extends BaseRequest{
         return registerServiceRequest;
     }
 
-    public static HeartbeatRequest parseFrom(BaseRequest request) {
+    public static HeartbeatRequest parseFrom(Request request) {
         ByteBuffer buffer = request.getBuffer();
-        return getRegisterServiceRequest(buffer, request);
+        return getRequest(buffer, request);
     }
 }

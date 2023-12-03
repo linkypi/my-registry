@@ -25,14 +25,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class IOThread extends Thread {
 
     private Selector selector;
-    private Map<String, LinkedBlockingQueue<Request>> requestQueue;
+    private Map<String, LinkedBlockingQueue<Message>> requestQueue;
     private ServiceInstance serviceInstance;
     private ServerConnectionManager serverConnectionManager;
-    private ConcurrentHashMap<Long, BaseResponse> responses;
+    private ConcurrentHashMap<Long, Response> responses;
     private BlockingQueue<ServerConnection> reconnectQueue = new LinkedBlockingQueue<>();
 
     public IOThread(ServiceInstance serviceInstance, ServerConnectionManager serverConnectionManager,
-                    ConcurrentHashMap<Long, BaseResponse> responses) {
+                    ConcurrentHashMap<Long, Response> responses) {
         this.serviceInstance = serviceInstance;
         this.selector = serviceInstance.getSelector();
         this.requestQueue = serviceInstance.getRequestQueue();
@@ -78,7 +78,7 @@ public class IOThread extends Thread {
                         sendRequest(socketChannel, connection);
                     }
                     if ((selectionKey.readyOps() & SelectionKey.OP_READ) != 0) {
-                        handleResponse(socketChannel, connection);
+                        handleRead(socketChannel, connection);
                     }
                     if ((selectionKey.readyOps() & SelectionKey.OP_CONNECT) != 0) {
                         handleConnect(socketChannel, selectionKey);
@@ -149,19 +149,28 @@ public class IOThread extends Thread {
 
     }
 
-    private void handleResponse(SocketChannel socketChannel, ServerConnection connection) throws IOException {
-        BaseResponse response = connection.doReadIO();
+    private void handleRead(SocketChannel socketChannel, ServerConnection connection) throws IOException {
+        Message message = connection.doReadIO();
+        if (message.getMessageType() == MessageType.REQUEST) {
+            Request request = (Request) message;
+            handlerRequest(request);
+        } else if (message.getMessageType() == MessageType.RESPONSE) {
+            Response response = (Response) message;
+            handlerResponse(response);
+        } else {
+            log.error("unknown message type: {}", message.getMessageType());
+        }
+    }
+    private void handlerRequest(Request request) {
+        if (request.getRequestType() == RequestType.Subscribe) {
+
+        }
+    }
+
+    private void handlerResponse(Response response) {
         if (response.getRequestType() == RequestType.FetchMetaData) {
             FetchMetaDataResponse fetchMetaDataResponse = FetchMetaDataResponse.parseFrom(response);
             serviceInstance.initMetaData(fetchMetaDataResponse);
-            return;
-        }
-        if (response.getRequestType() == RequestType.RegisterService) {
-            if (response.isSuccess()) {
-                log.info("register service success.");
-                return;
-            }
-            log.error("register service failed.");
             return;
         }
         responses.put(response.getRequestId(), response);
@@ -174,20 +183,20 @@ public class IOThread extends Thread {
         }
 
         // 从请求队列头部获取一个请求
-        LinkedBlockingQueue<Request> queue = requestQueue.get(connection.getConnectionId());
+        LinkedBlockingQueue<Message> queue = requestQueue.get(connection.getConnectionId());
         if (queue == null) {
             return;
         }
-        Request request = queue.peek();
-        if (request == null) {
+        Message message = queue.peek();
+        if (message == null || message.getMessageType() != MessageType.REQUEST) {
             return;
         }
 
-        int writeLen = socketChannel.write(request.getBuffer());
+        int writeLen = socketChannel.write(message.getBuffer());
 //        log.info("socket channel write {} bytes", writeLen);
 
         // 检查数据是否已经写完, 写完后移除
-        if (!request.getBuffer().hasRemaining()) {
+        if (!message.getBuffer().hasRemaining()) {
             queue.poll();
 //            log.info("send request to server, type: {}, id: {}", request.getRequestType(), request.getRequestId());
         }

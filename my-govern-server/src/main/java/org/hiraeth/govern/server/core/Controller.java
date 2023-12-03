@@ -64,12 +64,12 @@ public class Controller {
         try {
             Set<String> confirmSet = new HashSet<>();
             while (NodeStatusManager.isRunning()) {
-                if (serverNetworkManager.countResponseMessage(MessageType.AllocateSlotsAck) == 0) {
+                if (serverNetworkManager.countResponseMessage(ClusterMessageType.AllocateSlotsAck) == 0) {
                     Thread.sleep(500);
                     continue;
                 }
 
-                MessageBase message = serverNetworkManager.takeResponseMessage(MessageType.AllocateSlotsAck);
+                ClusterBaseMessage message = serverNetworkManager.takeResponseMessage(ClusterMessageType.AllocateSlotsAck);
                 SlotAllocateResultAck ackResult = SlotAllocateResultAck.parseFrom(message);
                 confirmSet.add(ackResult.getFromNodeId());
                 log.info("receive AllocateSlotsAck, confirm size {}", confirmSet.size());

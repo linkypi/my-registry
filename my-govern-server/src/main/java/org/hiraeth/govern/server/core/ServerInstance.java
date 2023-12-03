@@ -4,9 +4,7 @@ import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.SlotRang;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.core.*;
 import org.hiraeth.govern.server.entity.*;
-import org.hiraeth.govern.server.core.NodeStatusManager;
 import org.hiraeth.govern.server.network.NIOServer;
 import org.hiraeth.govern.server.network.ServerNetworkManager;
 
@@ -56,7 +54,7 @@ public class ServerInstance {
                 try {
                     Thread.sleep(10000);
                     log.info("                              ");
-                    for(MessageType type: MessageType.values()) {
+                    for(ClusterMessageType type: ClusterMessageType.values()) {
                         int countResponseMessage = serverNetworkManager.countResponseMessage(type);
                         log.info("-->  {} queue size {}", type.name(), countResponseMessage);
                     }
@@ -121,12 +119,12 @@ public class ServerInstance {
         try {
             log.info("wait for controller allocate slots ...");
             while (NodeStatusManager.isRunning()) {
-                if (serverNetworkManager.countResponseMessage(MessageType.AllocateSlots) > 0) {
+                if (serverNetworkManager.countResponseMessage(ClusterMessageType.AllocateSlots) > 0) {
                     acceptSlotAndReplyAck();
                     continue;
                 }
-                if (serverNetworkManager.countResponseMessage(MessageType.AllocateSlotsConfirm) > 0) {
-                    MessageBase message = serverNetworkManager.takeResponseMessage(MessageType.AllocateSlotsConfirm);
+                if (serverNetworkManager.countResponseMessage(ClusterMessageType.AllocateSlotsConfirm) > 0) {
+                    ClusterBaseMessage message = serverNetworkManager.takeResponseMessage(ClusterMessageType.AllocateSlotsConfirm);
                     SlotAllocateResultConfirm confirm = SlotAllocateResultConfirm.parseFrom(message);
                     if (confirm.getSlots() == null || confirm.getSlots().size() == 0) {
                         log.error("allocated slots confirm is null: {}", JSON.toJSONString(confirm));
@@ -150,7 +148,7 @@ public class ServerInstance {
     }
 
     private boolean acceptSlotAndReplyAck() {
-        MessageBase message = serverNetworkManager.takeResponseMessage(MessageType.AllocateSlots);
+        ClusterBaseMessage message = serverNetworkManager.takeResponseMessage(ClusterMessageType.AllocateSlots);
         SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(message);
         if (slotAllocateResult.getSlots() == null || slotAllocateResult.getSlots().size() == 0) {
             log.error("allocated slots from controller is null: {}", JSON.toJSONString(slotAllocateResult));

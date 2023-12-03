@@ -15,23 +15,23 @@ import java.nio.ByteBuffer;
 @Slf4j
 @Getter
 @Setter
-public class ElectionResult extends MessageBase{
+public class ElectionResult extends ClusterBaseMessage{
 
     // 角色, 无需远程传输
     private ServerRole serverRole;
 
     public ElectionResult() {
         super();
-        this.messageType = MessageType.ElectionComplete;
+        this.clusterMessageType = ClusterMessageType.ElectionComplete;
     }
 
-    public Message toMessage(){
+    public ClusterMessage toMessage(){
         ByteBuffer buffer = toBuffer();
-        return new Message(messageType, buffer.array());
+        return new ClusterMessage(clusterMessageType, buffer.array());
     }
     public ElectionResult(String controllerId, int epoch) {
         super();
-        this.messageType = MessageType.ElectionComplete;
+        this.clusterMessageType = ClusterMessageType.ElectionComplete;
         this.controllerId = controllerId;
         this.epoch = epoch;
     }
@@ -66,7 +66,7 @@ public class ElectionResult extends MessageBase{
         return super.convertToBuffer(0);
     }
 
-    public static ElectionResult parseFrom(MessageBase messageBase) {
+    public static ElectionResult parseFrom(ClusterBaseMessage messageBase) {
         ElectionResult electionResult = new ElectionResult();
         electionResult.setStage(messageBase.stage);
         electionResult.setEpoch(messageBase.epoch);

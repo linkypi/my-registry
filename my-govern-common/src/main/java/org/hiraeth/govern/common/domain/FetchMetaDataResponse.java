@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.util.CommonUtil;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -18,38 +19,34 @@ import java.util.Map;
  */
 @Getter
 @Setter
-public class FetchMetaDataResponse extends BaseResponse {
+public class FetchMetaDataResponse extends Response {
 
     private Map<String, SlotRang> slots;
     private List<ServerAddress> serverAddresses;
 
     public FetchMetaDataResponse() {
+        super();
         timestamp = System.currentTimeMillis();
         this.requestType = RequestType.FetchMetaData;
     }
 
-    public Response toResponse() {
-        byte[] bytes = JSON.toJSONString(slots).getBytes();
-        byte[] addresses = JSON.toJSONString(serverAddresses).getBytes();
-        // 仍需加上8字节长度， 因为每个属性有4个字节数据长度
-        toBuffer(bytes.length + addresses.length + 8);
-        return new Response(requestType, requestId, buffer);
-    }
-
     @Override
-    protected void writePayload(){
+    protected void writePayload() {
+        // 因为 writePayload 已重写 Response 故必须写入 Response 的所有属性 success
+        buffer.putInt(success ? 1 : 0);
         // 写入 slots
-        byte[] bytes = JSON.toJSONString(slots).getBytes();
-        buffer.putInt(bytes.length);
-        buffer.put(bytes);
+        CommonUtil.writeJsonString(buffer, slots);
 
         // 写入 master addresses
-        byte[] addresses = JSON.toJSONString(serverAddresses).getBytes();
-        buffer.putInt(addresses.length);
-        buffer.put(addresses);
+        CommonUtil.writeJsonString(buffer, serverAddresses);
     }
 
-    public static FetchMetaDataResponse parseFrom(BaseResponse baseResponse) {
+    public void buildBuffer() {
+        int length = 12 + CommonUtil.getJsonStringLength(slots) + CommonUtil.getJsonStringLength(serverAddresses);
+        buildBufferInternal(length);
+    }
+
+    public static FetchMetaDataResponse parseFrom(Response baseResponse) {
 
         ByteBuffer buffer = baseResponse.getBuffer();
 

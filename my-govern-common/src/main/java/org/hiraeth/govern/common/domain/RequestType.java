@@ -12,6 +12,7 @@ public enum RequestType {
     FetchMetaData(1),
     RegisterService(2),
     Heartbeat(3),
+    Subscribe(4),
 
     ;
 

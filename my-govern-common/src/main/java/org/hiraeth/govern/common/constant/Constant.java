@@ -39,6 +39,7 @@ public class Constant {
     public static final int DEFAULT_HEARTBEAT_TIMEOUT_PERIOD = 30;
 
     public static final int REQUEST_HEADER_LENGTH = 4;
+    public static final int REQUEST_WAIT_SLEEP_INTERVAL = 300;
 
 
 }

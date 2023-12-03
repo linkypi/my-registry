@@ -2,8 +2,7 @@ package org.hiraeth.govern.server.network;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.core.NodeStatusManager;
-import org.hiraeth.govern.server.entity.MessageBase;
-import org.hiraeth.govern.server.entity.MessageType;
+import org.hiraeth.govern.server.entity.ClusterBaseMessage;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -24,9 +23,9 @@ public class ServerReadThread extends Thread{
      */
     private Socket socket;
     private DataInputStream inputStream;
-    private Map<Integer,LinkedBlockingQueue<MessageBase>> receiveQueue;
+    private Map<Integer,LinkedBlockingQueue<ClusterBaseMessage>> receiveQueue;
 
-    public ServerReadThread(Socket socket, Map<Integer, LinkedBlockingQueue<MessageBase>> receiveQueue){
+    public ServerReadThread(Socket socket, Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>> receiveQueue){
         this.socket = socket;
         this.receiveQueue = receiveQueue;
         try {
@@ -49,8 +48,8 @@ public class ServerReadThread extends Thread{
                 inputStream.readFully(bytes, 0, length);
 
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                MessageBase messageBase = MessageBase.parseFromBuffer(buffer);
-                int msgType = messageBase.getMessageType().getValue();
+                ClusterBaseMessage messageBase = ClusterBaseMessage.parseFromBuffer(buffer);
+                int msgType = messageBase.getClusterMessageType().getValue();
 
                 receiveQueue.get(msgType).add(messageBase);
 

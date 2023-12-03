@@ -12,7 +12,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @AllArgsConstructor
-public class Message {
-    private MessageType messageType;
+public class ClusterMessage {
+    private ClusterMessageType clusterMessageType;
     private byte[] buffer;
 }

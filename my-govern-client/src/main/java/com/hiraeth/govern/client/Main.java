@@ -18,6 +18,9 @@ public class Main {
 
         configuration.parse();
 
-        new ServiceInstance().init();
+        ServiceInstance serviceInstance = new ServiceInstance();
+        serviceInstance.init();
+        Thread.sleep(3000);
+        serviceInstance.subscribe("DEFAULT", null);
     }
 }

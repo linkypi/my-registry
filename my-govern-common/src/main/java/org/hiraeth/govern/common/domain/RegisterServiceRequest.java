@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
  */
 @Getter
 @Setter
-public class RegisterServiceRequest extends BaseRequest {
+public class RegisterServiceRequest extends Request {
 
     private String serviceName;
     /**
@@ -27,16 +27,11 @@ public class RegisterServiceRequest extends BaseRequest {
      */
     private int servicePort;
 
-    public RegisterServiceRequest(){
+    public RegisterServiceRequest() {
+        super();
         this.requestType = RequestType.RegisterService;
         this.requestId = SnowFlakeIdUtil.getNextId();
         this.timestamp = System.currentTimeMillis();
-    }
-
-    public Request toRequest() {
-        int length = CommonUtil.getStrLength(serviceName) + CommonUtil.getStrLength(instanceIp);
-        toBuffer(12 + length);
-        return new Request(requestType, requestId, buffer);
     }
 
     @Override
@@ -46,7 +41,12 @@ public class RegisterServiceRequest extends BaseRequest {
         CommonUtil.writeStr(buffer, instanceIp);
     }
 
-    private static RegisterServiceRequest getRegisterServiceRequest(ByteBuffer buffer, BaseRequest request) {
+    public void buildBuffer() {
+        int length = 12 + CommonUtil.getStrLength(serviceName) + CommonUtil.getStrLength(instanceIp);
+        buildBufferInternal(length);
+    }
+
+    private static RegisterServiceRequest getRegisterServiceRequest(ByteBuffer buffer, Request request) {
         int port = buffer.getInt();
         String serviceName = CommonUtil.readStr(buffer);
         String instanceIp = CommonUtil.readStr(buffer);
@@ -57,7 +57,7 @@ public class RegisterServiceRequest extends BaseRequest {
         return registerServiceRequest;
     }
 
-    public static RegisterServiceRequest parseFrom(BaseRequest request) {
+    public static RegisterServiceRequest parseFrom(Request request) {
         ByteBuffer buffer = request.getBuffer();
         return getRegisterServiceRequest(buffer, request);
     }

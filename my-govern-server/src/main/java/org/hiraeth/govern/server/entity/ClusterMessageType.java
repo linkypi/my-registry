@@ -8,7 +8,7 @@ import lombok.Getter;
  * @date: 2023/11/28 17:39
  */
 @Getter
-public enum MessageType {
+public enum ClusterMessageType {
 
     /**
      * 发送当前节点信息，包括 nodeId, isControllerCandidate等信息
@@ -32,13 +32,13 @@ public enum MessageType {
     // 向所有leader通知: 大多数 follower 已确认当前槽位分配
     AllocateSlotsConfirm(8),
     ;
-    MessageType(int value){
+    ClusterMessageType(int value){
         this.value = value;
     }
     private int value;
 
-    public static MessageType of(int value){
-        for(MessageType item: MessageType.values()){
+    public static ClusterMessageType of(int value){
+        for(ClusterMessageType item: ClusterMessageType.values()){
             if(value == item.value){
                 return item;
             }

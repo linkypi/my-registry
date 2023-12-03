@@ -18,9 +18,9 @@ public class SlotAllocateResultConfirm extends SlotAllocateResult{
 
     public SlotAllocateResultConfirm(Map<String, SlotRang> slots){
         super(slots);
-        this.messageType = MessageType.AllocateSlotsConfirm;
+        this.clusterMessageType = ClusterMessageType.AllocateSlotsConfirm;
     }
-    public static SlotAllocateResultConfirm parseFrom(MessageBase messageBase){
+    public static SlotAllocateResultConfirm parseFrom(ClusterBaseMessage messageBase){
         SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(messageBase);
         return BeanUtil.copyProperties(slotAllocateResult, SlotAllocateResultConfirm.class);
     }

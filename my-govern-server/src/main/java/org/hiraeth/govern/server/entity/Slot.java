@@ -2,8 +2,10 @@ package org.hiraeth.govern.server.entity;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.hiraeth.govern.common.domain.ServiceInstance;
+import org.hiraeth.govern.common.domain.ServiceInstanceInfo;
 import org.hiraeth.govern.server.registry.ServiceRegistry;
+
+import java.util.List;
 
 /**
  * @author: lynch
@@ -24,11 +26,15 @@ public class Slot {
         this.serviceRegistry = ServiceRegistry.getInstance();
     }
 
-    public void registerServiceInstance(ServiceInstance serviceInstance){
-        serviceRegistry.register(serviceInstance);
+    public void registerServiceInstance(ServiceInstanceInfo serviceInstanceInfo){
+        serviceRegistry.register(serviceInstanceInfo);
     }
 
-    public void heartbeat(ServiceInstance serviceInstance) {
-        serviceRegistry.heartbeat(serviceInstance);
+    public void heartbeat(ServiceInstanceInfo serviceInstanceInfo) {
+        serviceRegistry.heartbeat(serviceInstanceInfo);
+    }
+
+    public List<ServiceInstanceInfo> subscribe(String clientConnectionId, String serviceName) {
+        return serviceRegistry.subscribe(clientConnectionId, serviceName);
     }
 }

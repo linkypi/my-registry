@@ -3,7 +3,6 @@ package org.hiraeth.govern.server.entity;
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.util.CommonUtil;
-import org.hiraeth.govern.common.util.StringUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.core.NodeStatusManager;
 import org.hiraeth.govern.server.core.ElectionStage;
@@ -11,14 +10,15 @@ import org.hiraeth.govern.server.core.ElectionStage;
 import java.nio.ByteBuffer;
 
 /**
+ * 服务端集群内部通信基础组件
  * @author: lynch
  * @description:
  * @date: 2023/11/30 13:58
  */
 @Getter
 @Setter
-public class MessageBase {
-    protected MessageType messageType;
+public class ClusterBaseMessage {
+    protected ClusterMessageType clusterMessageType;
     protected String controllerId;
     protected int epoch;
     protected long timestamp;
@@ -34,9 +34,9 @@ public class MessageBase {
 
     private ByteBuffer buffer;
 
-    public MessageBase(MessageType messageType, String controllerId, int epoch){
+    public ClusterBaseMessage(ClusterMessageType clusterMessageType, String controllerId, int epoch){
 
-        this.messageType = messageType;
+        this.clusterMessageType = clusterMessageType;
         this.timestamp = System.currentTimeMillis();
         this.fromNodeId = Configuration.getInstance().getNodeId();
         this.controllerId = controllerId;
@@ -44,12 +44,12 @@ public class MessageBase {
         this.stage = ElectionStage.ELStage.LEADING.getValue();
     }
 
-    public Message toMessage(){
+    public ClusterMessage toMessage(){
         ByteBuffer buffer = convertToBuffer(0);
-        return new Message(messageType, buffer.array());
+        return new ClusterMessage(clusterMessageType, buffer.array());
     }
 
-    public MessageBase(){
+    public ClusterBaseMessage(){
         NodeStatusManager statusManager = NodeStatusManager.getInstance();
         this.timestamp = System.currentTimeMillis();
         this.fromNodeId = Configuration.getInstance().getNodeId();
@@ -64,7 +64,7 @@ public class MessageBase {
     protected ByteBuffer convertToBuffer(int payloadLength) {
         int strLength = CommonUtil.getStrLength(controllerId) + CommonUtil.getStrLength(fromNodeId);
         buffer = ByteBuffer.allocate(28 + strLength + payloadLength);
-        buffer.putInt(messageType.getValue());
+        buffer.putInt(clusterMessageType.getValue());
         writeStr(controllerId);
         buffer.putInt(epoch);
         buffer.putLong(System.currentTimeMillis());
@@ -83,12 +83,12 @@ public class MessageBase {
         return CommonUtil.readStr(buffer);
     }
 
-    public static MessageBase parseFromBuffer(ByteBuffer buffer) {
+    public static ClusterBaseMessage parseFromBuffer(ByteBuffer buffer) {
         int requestType = buffer.getInt();
-        MessageType msgType = MessageType.of(requestType);
+        ClusterMessageType msgType = ClusterMessageType.of(requestType);
 
-        MessageBase messageBase = new MessageBase();
-        messageBase.setMessageType(msgType);
+        ClusterBaseMessage messageBase = new ClusterBaseMessage();
+        messageBase.setClusterMessageType(msgType);
         messageBase.controllerId = CommonUtil.readStr(buffer);
         messageBase.epoch = buffer.getInt();
         messageBase.timestamp = buffer.getLong();

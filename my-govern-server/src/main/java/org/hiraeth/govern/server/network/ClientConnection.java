@@ -4,11 +4,10 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.MessageReader;
-import org.hiraeth.govern.common.domain.BaseRequest;
-import org.hiraeth.govern.common.domain.BaseResponse;
+import org.hiraeth.govern.common.domain.Message;
+import org.hiraeth.govern.common.domain.Request;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.UUID;
@@ -32,12 +31,7 @@ public class ClientConnection extends MessageReader {
         this.connectionId = UUID.randomUUID().toString().replace("-","");
     }
 
-    @Override
-    protected Object build(ByteBuffer buffer) {
-        return BaseRequest.parseFromBuffer(buffer);
-    }
-
-    public BaseRequest doReadIO() throws IOException {
-        return (BaseRequest)super.doReadIOInternal();
+    public Message doReadIO() throws IOException {
+        return super.doReadIOInternal();
     }
 }

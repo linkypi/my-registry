@@ -16,7 +16,7 @@ import java.nio.ByteBuffer;
 @Getter
 @Setter
 @AllArgsConstructor
-public class Vote extends MessageBase{
+public class Vote extends ClusterBaseMessage{
     /**
      * 投票轮次
      */
@@ -31,12 +31,12 @@ public class Vote extends MessageBase{
         super();
         this.round = round;
         this.fromNodeId = targetNodeId;
-        this.messageType = MessageType.Vote;
+        this.clusterMessageType = ClusterMessageType.Vote;
     }
 
-    public Message toMessage(){
+    public ClusterMessage toMessage(){
         ByteBuffer buffer = toBuffer();
-        return new Message(messageType, buffer.array());
+        return new ClusterMessage(clusterMessageType, buffer.array());
     }
 
     protected void writePayload(ByteBuffer buffer){
@@ -49,7 +49,7 @@ public class Vote extends MessageBase{
         return convertToBuffer(8 + strLength);
     }
 
-    public static Vote parseFrom(MessageBase messageBase) {
+    public static Vote parseFrom(ClusterBaseMessage messageBase) {
         Vote vote = BeanUtil.copyProperties(messageBase, Vote.class);
         ByteBuffer buffer = messageBase.getBuffer();
         vote.round = buffer.getInt();

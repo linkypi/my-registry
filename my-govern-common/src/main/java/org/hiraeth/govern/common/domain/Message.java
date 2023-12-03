@@ -9,28 +9,32 @@ import static org.hiraeth.govern.common.constant.Constant.REQUEST_HEADER_LENGTH;
 
 /**
  * @author: lynch
- * @description:
- * @date: 2023/11/30 22:29
+ * @description: 客户端与服务器通信的消息基础组件
+ * @date: 2023/12/3 9:47
  */
 @Getter
 @Setter
-public class BaseRequest {
-
+public class Message implements IMessage{
+    protected MessageType messageType;
     protected RequestType requestType;
     protected long requestId;
     protected long timestamp;
 
     protected ByteBuffer buffer;
 
+    public Message(){
+        this.timestamp = System.currentTimeMillis();
+    }
+
     protected void writePayload(){
     }
 
-    protected void toBuffer(int payloadLength) {
-
-        int length = 20 + REQUEST_HEADER_LENGTH + payloadLength;
+    protected void buildBufferInternal(int payloadLength){
+        int length = 24 + REQUEST_HEADER_LENGTH + payloadLength;
         buffer = ByteBuffer.allocate(length);
 
         buffer.putInt(length);
+        buffer.putInt(messageType.getValue());
         buffer.putInt(requestType.getValue());
         buffer.putLong(requestId);
         buffer.putLong(System.currentTimeMillis());
@@ -40,15 +44,11 @@ public class BaseRequest {
         buffer.flip();
     }
 
-    public static BaseRequest parseFromBuffer(ByteBuffer buffer) {
-        int type = buffer.getInt();
-        RequestType requestType = RequestType.of(type);
+    public Response toResponse() {
+        return Response.toResponse(buffer);
+    }
 
-        BaseRequest request = new BaseRequest();
-        request.requestId = buffer.getLong();
-        request.timestamp = buffer.getLong();
-        request.buffer = buffer;
-        request.requestType = requestType;
-        return request;
+    public Request toRequest() {
+        return Request.toRequest(buffer);
     }
 }

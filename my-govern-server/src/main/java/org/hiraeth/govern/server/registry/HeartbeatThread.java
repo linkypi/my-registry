@@ -1,7 +1,7 @@
 package org.hiraeth.govern.server.registry;
 
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.common.domain.ServiceInstance;
+import org.hiraeth.govern.common.domain.ServiceInstanceInfo;
 import org.hiraeth.govern.common.util.CollectionUtil;
 import org.hiraeth.govern.server.config.Configuration;
 
@@ -32,10 +32,14 @@ public class HeartbeatThread extends Thread {
                 long now = new Date().getTime();
 
                 List<String> instanceIds = new ArrayList<>();
-                Map<String, ServiceInstance> serviceInstances = registry.getServiceInstances();
-                for (ServiceInstance instance : serviceInstances.values()) {
+                Map<String, ServiceInstanceInfo> serviceInstances = registry.getServiceInstances();
+                for (ServiceInstanceInfo instance : serviceInstances.values()) {
+                    if(instance.getLatestHeartbeatTime() == null){
+                        instance.setLatestHeartbeatTime(new Date().getTime());
+                        continue;
+                    }
                     if (now - instance.getLatestHeartbeatTime() >= heartbeatTimeoutPeriod * 1000L) {
-                        List<ServiceInstance> instances = registry.getServiceRegistry().get(instance.getServiceName());
+                        List<ServiceInstanceInfo> instances = registry.getServiceRegistry().get(instance.getServiceName());
                         if (instances != null) {
                             instances.remove(instance);
                         }

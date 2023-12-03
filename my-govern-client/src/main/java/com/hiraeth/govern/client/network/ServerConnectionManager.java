@@ -30,4 +30,8 @@ public class ServerConnectionManager {
     public ServerConnection get(String key){
         return connections.get(key);
     }
+
+    public boolean hasConnect(String address){
+        return connections.containsKey(address);
+    }
 }

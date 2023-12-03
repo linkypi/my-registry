@@ -2,6 +2,7 @@ package com.hiraeth.govern.client;
 
 import com.alibaba.fastjson.JSON;
 import com.hiraeth.govern.client.config.Configuration;
+import com.hiraeth.govern.client.entity.ServiceInstanceChangeListener;
 import com.hiraeth.govern.client.network.HeartbeatThread;
 import com.hiraeth.govern.client.network.IOThread;
 import com.hiraeth.govern.client.network.ServerConnection;
@@ -23,6 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import static org.hiraeth.govern.common.constant.Constant.REQUEST_WAIT_SLEEP_INTERVAL;
+
 /**
  * @author: lynch
  * @description:
@@ -38,8 +41,8 @@ public class ServiceInstance {
     // 客户端与服务端的selectionKey
     private SelectionKey selectionKey;
 
-    private Map<String, LinkedBlockingQueue<Request>> requestQueue = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<Long, BaseResponse> responses = new ConcurrentHashMap<>();
+    private Map<String, LinkedBlockingQueue<Message>> requestQueue = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<Long, Response> responses = new ConcurrentHashMap<>();
 
     private ServerConnectionManager serverConnectionManager;
     private Map<String, SlotRang> slotsMap;
@@ -50,6 +53,7 @@ public class ServiceInstance {
 
     private ServerConnection controllerConnection;
     private ServerConnection routeServerConnection;
+    private static Map<String, List<ServiceInstanceInfo>> cacheServiceRegistry = new ConcurrentHashMap<>();
 
     private static final Random random = new Random();
 
@@ -70,37 +74,30 @@ public class ServiceInstance {
      * 随机选择一个controller候选节点, 与其建立长连接
      * 发送请求到controller候选节点获取slots数据
      */
-    public void init() throws IOException {
+    public void init() throws IOException, InterruptedException {
         connectController();
         registerCurrentInstance();
     }
 
-    private void registerCurrentInstance() throws IOException {
+    private void registerCurrentInstance() throws IOException, InterruptedException {
         ServerAddress serverAddress = routeServer();
-        // 判断是否已存在相同连接
-        if (controllerConnection != null && controllerConnection.getAddress().equals(serverAddress.getNodeId())) {
-            routeServerConnection = controllerConnection;
-        } else {
-            routeServerConnection = connectServer(server);
-        }
-        routeServerConnection = connectServer(serverAddress);
+        checkConnection(serverAddress);
         register();
+    }
+
+    private void checkConnection(ServerAddress serverAddress) throws IOException {
+        if(!serverConnectionManager.hasConnect(serverAddress.toString())){
+            routeServerConnection = connectServer(serverAddress);
+        }
     }
 
     private void connectController() throws IOException {
         server = chooseControllerCandidate();
-
-        // 判断是否已存在相同连接
-        if (routeServerConnection != null && routeServerConnection.getAddress().equals(server.getNodeId())) {
-            controllerConnection = routeServerConnection;
-        } else {
-            controllerConnection = connectServer(server);
-        }
-
+        controllerConnection = connectServer(server);
         fetchMetaDataFromServer(controllerConnection.getConnectionId());
     }
 
-    public void reconnect(ServerConnection connection) throws IOException {
+    public void reconnect(ServerConnection connection) throws IOException, InterruptedException {
 
         if (controllerConnection == null || connection.getAddress().equals(controllerConnection.getAddress())) {
             connectController();
@@ -114,7 +111,7 @@ public class ServiceInstance {
      * 根据服务名称路由到一个slot槽位, 找到slot槽位所在服务器节点
      * 跟指定服务器节点建立长连接, 然后发送请求到服务器节点进行服务注册
      */
-    public void register() {
+    public void register() throws IOException, InterruptedException {
         Configuration configuration = Configuration.getInstance();
         String serviceInstanceIp = configuration.getServiceInstanceIp();
         int serviceInstancePort = configuration.getServiceInstancePort();
@@ -122,12 +119,70 @@ public class ServiceInstance {
         registerServiceRequest.setInstanceIp(serviceInstanceIp);
         registerServiceRequest.setServicePort(serviceInstancePort);
         registerServiceRequest.setServiceName(configuration.getServiceName());
-        Request request = registerServiceRequest.toRequest();
-        requestQueue.get(routeServerConnection.getConnectionId()).add(request);
+        registerServiceRequest.buildBuffer();
+
+        LinkedBlockingQueue<Message> queue = getRoutServerSendQueue();
+        queue.add(registerServiceRequest);
         log.info("register service {} to server {}.", configuration.getServiceName(), routeServerConnection.getAddress());
 
+        Response response = getResponseBlocking(registerServiceRequest.getRequestId());
+
+        if (!response.isSuccess()) {
+            log.error("register service failed.");
+            return;
+        }
+
+        log.info("register service success.");
         new HeartbeatThread(requestQueue, responses, routeServerConnection.getConnectionId()).start();
         log.info("service instance heartbeat started ...");
+    }
+
+    /**
+     * 1. 返回指定服务的所有实例
+     * 2. 指定服务若后续实例列表有变更， 则需主动通知客户端
+     * @param serviceName
+     * @return
+     */
+    public List<ServiceInstanceInfo> subscribe(String serviceName, ServiceInstanceChangeListener changeListener) throws IOException, InterruptedException {
+
+        if(cacheServiceRegistry.containsKey(serviceName)){
+            return cacheServiceRegistry.get(serviceName);
+        }
+
+        LinkedBlockingQueue<Message> queue = getRoutServerSendQueue();
+        SubscribeRequest subscribeRequest = new SubscribeRequest(serviceName);
+        subscribeRequest.buildBuffer();
+        queue.add(subscribeRequest);
+
+        Response response = getResponseBlocking(subscribeRequest.getRequestId());
+
+        SubscribeResponse subscribeResponse = SubscribeResponse.parseFrom(response);
+        List<ServiceInstanceInfo> addresses = subscribeResponse.getServiceInstanceInfoAddresses();
+        cacheServiceRegistry.put(serviceName, addresses);
+        log.info("subscribe {} response: {}", serviceName, JSON.toJSONString(addresses));
+
+        return addresses;
+    }
+
+    public List<ServiceInstanceInfo> getServiceInstanceAddresses(String serviceName){
+        return cacheServiceRegistry.get(serviceName);
+    }
+
+    private Response getResponseBlocking(long requestId) throws InterruptedException {
+        while (responses.get(requestId) == null) {
+            Thread.sleep(REQUEST_WAIT_SLEEP_INTERVAL);
+        }
+        Response response = responses.get(requestId);
+        responses.remove(requestId);
+        return response;
+    }
+
+    private LinkedBlockingQueue<Message> getRoutServerSendQueue() throws IOException {
+        ServerAddress serverAddress = routeServer();
+        checkConnection(serverAddress);
+
+        ServerConnection serverConnection = serverConnectionManager.get(serverAddress.toString());
+        return requestQueue.get(serverConnection.getConnectionId());
     }
 
     private ServerAddress routeServer() {
@@ -146,10 +201,6 @@ public class ServiceInstance {
             return null;
         }
         return first.get();
-    }
-
-    public void startHeartbeatSchedule() {
-
     }
 
     private String locateServerNodeBySlot(int slot) {
@@ -177,7 +228,8 @@ public class ServiceInstance {
 
     private void fetchMetaDataFromServer(String connectionId) {
         FetchMetaDataRequest fetchMetaDataRequest = new FetchMetaDataRequest();
-        requestQueue.get(connectionId).add(fetchMetaDataRequest.toRequest());
+        fetchMetaDataRequest.buildBuffer();
+        requestQueue.get(connectionId).add(fetchMetaDataRequest);
 
         try {
             fetchMataDataLatch.await();

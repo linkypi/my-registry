@@ -48,11 +48,11 @@ public class ServerNetworkManager extends NetworkManager {
     /**
      * 发送队列
      */
-    private Map<String, LinkedBlockingQueue<Message>> sendQueues = new ConcurrentHashMap<>();
+    private Map<String, LinkedBlockingQueue<ClusterMessage>> sendQueues = new ConcurrentHashMap<>();
     /**
      * 接收队列
      */
-    private Map<Integer, LinkedBlockingQueue<MessageBase>> receiveQueues = new ConcurrentHashMap<>();
+    private Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>> receiveQueues = new ConcurrentHashMap<>();
 
     /**
      * 远程controller节点管理组件
@@ -121,13 +121,13 @@ public class ServerNetworkManager extends NetworkManager {
     /**
      * 发送网络请求
      * @param remoteNodeId
-     * @param message
+     * @param clusterMessage
      * @return
      */
-    public boolean sendRequest(String remoteNodeId, Message message) {
+    public boolean sendRequest(String remoteNodeId, ClusterMessage clusterMessage) {
         try {
-            LinkedBlockingQueue<Message> sendQueue = sendQueues.get(remoteNodeId);
-            sendQueue.put(message);
+            LinkedBlockingQueue<ClusterMessage> sendQueue = sendQueues.get(remoteNodeId);
+            sendQueue.put(clusterMessage);
         } catch (Exception ex) {
             log.error("put request to send queue failed, remote node id: {}", remoteNodeId, ex);
             return false;
@@ -135,17 +135,17 @@ public class ServerNetworkManager extends NetworkManager {
         return true;
     }
 
-    public MessageBase takeResponseMessage(MessageType messageType){
+    public ClusterBaseMessage takeResponseMessage(ClusterMessageType clusterMessageType){
         try {
-            return receiveQueues.get(messageType.getValue()).take();
+            return receiveQueues.get(clusterMessageType.getValue()).take();
         }catch (Exception ex){
             log.error("take message from receive queue failed.", ex);
             return null;
         }
     }
 
-    public int countResponseMessage(MessageType messageType){
-        BlockingQueue<MessageBase> queue = receiveQueues.get(messageType.getValue());
+    public int countResponseMessage(ClusterMessageType clusterMessageType){
+        BlockingQueue<ClusterBaseMessage> queue = receiveQueues.get(clusterMessageType.getValue());
         if(queue == null){
             return 0;
         }
@@ -219,12 +219,12 @@ public class ServerNetworkManager extends NetworkManager {
 
     public void startServerIOThreads(String remoteNodeId, Socket socket) {
 
-        LinkedBlockingQueue<Message> sendQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<ClusterMessage> sendQueue = new LinkedBlockingQueue<>();
         // 初始化发送请求队列
         sendQueues.put(remoteNodeId, sendQueue);
 
-        for (MessageType messageType : MessageType.values()){
-            receiveQueues.put(messageType.getValue(), new LinkedBlockingQueue<>());
+        for (ClusterMessageType clusterMessageType : ClusterMessageType.values()){
+            receiveQueues.put(clusterMessageType.getValue(), new LinkedBlockingQueue<>());
         }
 
         new ServerWriteThread(socket, sendQueue).start();

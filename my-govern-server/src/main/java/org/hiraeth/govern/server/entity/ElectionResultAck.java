@@ -16,7 +16,7 @@ import java.nio.ByteBuffer;
 @Slf4j
 @Getter
 @Setter
-public class ElectionResultAck extends MessageBase{
+public class ElectionResultAck extends ClusterBaseMessage{
 
     @Getter
     public enum AckResult {
@@ -34,15 +34,15 @@ public class ElectionResultAck extends MessageBase{
 
     public ElectionResultAck(String controllerId, int epoch, int result){
         super();
-        this.messageType = MessageType.ElectionCompleteAck;
+        this.clusterMessageType = ClusterMessageType.ElectionCompleteAck;
         this.controllerId = controllerId;
         this.epoch = epoch;
         this.result = result;
     }
 
-    public Message toMessage(){
+    public ClusterMessage toMessage(){
         ByteBuffer buffer = toBuffer();
-        return new Message(messageType, buffer.array());
+        return new ClusterMessage(clusterMessageType, buffer.array());
     }
 
     @Override
@@ -64,7 +64,7 @@ public class ElectionResultAck extends MessageBase{
                 AckResult.Rejected.getValue());
     }
 
-    public static ElectionResultAck parseFrom(MessageBase messageBase) {
+    public static ElectionResultAck parseFrom(ClusterBaseMessage messageBase) {
         ByteBuffer buffer = messageBase.getBuffer();
         ElectionResultAck resultAck = BeanUtil.copyProperties(messageBase, ElectionResultAck.class);
         resultAck.setResult(buffer.getInt());

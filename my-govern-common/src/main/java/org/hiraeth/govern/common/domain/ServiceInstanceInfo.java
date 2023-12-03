@@ -14,35 +14,35 @@ import java.util.Objects;
 @Getter
 @Setter
 @AllArgsConstructor
-public class ServiceInstance {
+public class ServiceInstanceInfo {
     private String serviceName;
-    private String serviceInstanceIp;
-    private int serviceInstancePort;
+    private String instanceIp;
+    private int instancePort;
     private volatile Long latestHeartbeatTime;
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ServiceInstance that = (ServiceInstance) o;
-        return serviceInstancePort == that.serviceInstancePort
+        ServiceInstanceInfo that = (ServiceInstanceInfo) o;
+        return instancePort == that.instancePort
                 && serviceName.equals(that.serviceName)
-                && serviceInstanceIp.equals(that.serviceInstanceIp);
+                && instanceIp.equals(that.instanceIp);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(serviceName, serviceInstanceIp, serviceInstancePort);
+        return Objects.hash(serviceName, instanceIp, instancePort);
     }
 
-    public ServiceInstance(String serviceName, String serviceInstanceIp, int serviceInstancePort){
-        this.serviceInstanceIp = serviceInstanceIp;
-        this.serviceInstancePort = serviceInstancePort;
+    public ServiceInstanceInfo(String serviceName, String instanceIp, int instancePort){
+        this.instanceIp = instanceIp;
+        this.instancePort = instancePort;
         this.serviceName = serviceName;
     }
 
     public String getServiceInstanceId() {
-        return serviceName + "/" + serviceInstanceIp + "/" + serviceInstancePort;
+        return serviceName + "/" + instanceIp + "/" + instancePort;
     }
 
 

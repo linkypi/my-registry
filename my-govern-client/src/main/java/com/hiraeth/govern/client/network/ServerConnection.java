@@ -4,8 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.MessageReader;
-import org.hiraeth.govern.common.domain.BaseRequest;
-import org.hiraeth.govern.common.domain.BaseResponse;
+import org.hiraeth.govern.common.domain.Message;
+import org.hiraeth.govern.common.domain.Response;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -41,12 +41,7 @@ public class ServerConnection extends MessageReader {
         this.address = inetAddress.toString().replace("/","") +":"+ socketChannel.socket().getPort();
     }
 
-    @Override
-    protected Object build(ByteBuffer buffer) {
-        return BaseResponse.parseFromBuffer(buffer);
-    }
-
-    public BaseResponse doReadIO() throws IOException {
-        return (BaseResponse)super.doReadIOInternal();
+    public Message doReadIO() throws IOException {
+        return super.doReadIOInternal();
     }
 }

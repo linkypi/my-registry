@@ -139,8 +139,8 @@ public class ControllerCandidate {
         while (NodeStatusManager.isRunning() && ElectionStage.getStatus() == ElectionStage.ELStage.ELECTING) {
             try {
                 Thread.sleep(300);
-                if (serverNetworkManager.countResponseMessage(MessageType.Vote) > 0) {
-                    MessageBase messageBase = serverNetworkManager.takeResponseMessage(MessageType.Vote);
+                if (serverNetworkManager.countResponseMessage(ClusterMessageType.Vote) > 0) {
+                    ClusterBaseMessage messageBase = serverNetworkManager.takeResponseMessage(ClusterMessageType.Vote);
                     Vote vote = Vote.parseFrom(messageBase);
                     String leaderId = handleVoteResponse(vote);
                     if (leaderId != null) {
@@ -164,17 +164,17 @@ public class ControllerCandidate {
         public void run() {
             try {
                 while (NodeStatusManager.isRunning()) {
-                    if (serverNetworkManager.countResponseMessage(MessageType.ElectionComplete) > 0) {
+                    if (serverNetworkManager.countResponseMessage(ClusterMessageType.ElectionComplete) > 0) {
                         handleElectionResult();
                     }
 
-                    if (serverNetworkManager.countResponseMessage(MessageType.ElectionCompleteAck) > 0) {
+                    if (serverNetworkManager.countResponseMessage(ClusterMessageType.ElectionCompleteAck) > 0) {
                         if(ackElectionResult()){
                             break;
                         }
                     }
 
-                    if (serverNetworkManager.countResponseMessage(MessageType.Leading) > 0) {
+                    if (serverNetworkManager.countResponseMessage(ClusterMessageType.Leading) > 0) {
                         if(handleLeadingResult()){
                             break;
                         }
@@ -188,7 +188,7 @@ public class ControllerCandidate {
         }
 
         private boolean handleLeadingResult() {
-            MessageBase messageBase = serverNetworkManager.takeResponseMessage(MessageType.Leading);
+            ClusterBaseMessage messageBase = serverNetworkManager.takeResponseMessage(ClusterMessageType.Leading);
             log.info("receive Leading message !!! {}", JSON.toJSONString(messageBase));
             if (electionResult != null && electionResult.getControllerId() != messageBase.getControllerId()) {
                 log.error("receive Leading message, but the controller id is not the same, current election result: {}, " +
@@ -199,7 +199,7 @@ public class ControllerCandidate {
         }
 
         private boolean handleElectionResult() {
-            MessageBase messageBase = serverNetworkManager.takeResponseMessage(MessageType.ElectionComplete);
+            ClusterBaseMessage messageBase = serverNetworkManager.takeResponseMessage(ClusterMessageType.ElectionComplete);
             ElectionResult remoteEleResult = ElectionResult.parseFrom(messageBase);
             log.info("election result notification: {}. ", JSON.toJSONString(remoteEleResult));
 
@@ -230,7 +230,7 @@ public class ControllerCandidate {
         }
 
         private boolean ackElectionResult() {
-            MessageBase messageBase = serverNetworkManager.takeResponseMessage(MessageType.ElectionCompleteAck);
+            ClusterBaseMessage messageBase = serverNetworkManager.takeResponseMessage(ClusterMessageType.ElectionCompleteAck);
             ElectionResultAck remoteResultAck = ElectionResultAck.parseFrom(messageBase);
             if (ElectionResultAck.AckResult.Accepted.getValue() == remoteResultAck.getResult()) {
                 confirmList.add(remoteResultAck.getFromNodeId());
@@ -254,7 +254,7 @@ public class ControllerCandidate {
                 String controllerId = remoteResultAck.getControllerId();
                 int epoch = remoteResultAck.getEpoch();
 
-                MessageBase message = new MessageBase(MessageType.Leading, controllerId, epoch);
+                ClusterBaseMessage message = new ClusterBaseMessage(ClusterMessageType.Leading, controllerId, epoch);
 
                 for (RemoteServer remoteServer : remoteNodeManager.getOtherControllerCandidates()) {
                     serverNetworkManager.sendRequest(remoteServer.getNodeId(), message.toMessage());

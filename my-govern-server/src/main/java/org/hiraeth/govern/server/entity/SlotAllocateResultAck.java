@@ -13,20 +13,20 @@ import java.nio.ByteBuffer;
  */
 @Getter
 @Setter
-public class SlotAllocateResultAck extends MessageBase{
+public class SlotAllocateResultAck extends ClusterBaseMessage{
     public SlotAllocateResultAck(){
         super();
-        this.messageType = MessageType.AllocateSlotsAck;
+        this.clusterMessageType = ClusterMessageType.AllocateSlotsAck;
     }
-    public Message toMessage(){
+    public ClusterMessage toMessage(){
         ByteBuffer buffer = toBuffer();
-        return new Message(messageType, buffer.array());
+        return new ClusterMessage(clusterMessageType, buffer.array());
     }
     public ByteBuffer toBuffer(){
         return super.convertToBuffer(0);
     }
 
-    public static SlotAllocateResultAck parseFrom(MessageBase messageBase) {
+    public static SlotAllocateResultAck parseFrom(ClusterBaseMessage messageBase) {
         return BeanUtil.copyProperties(messageBase, SlotAllocateResultAck.class);
     }
 

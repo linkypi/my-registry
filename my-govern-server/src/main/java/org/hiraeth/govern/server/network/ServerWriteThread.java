@@ -2,7 +2,7 @@ package org.hiraeth.govern.server.network;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.core.NodeStatusManager;
-import org.hiraeth.govern.server.entity.Message;
+import org.hiraeth.govern.server.entity.ClusterMessage;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -24,9 +24,9 @@ public class ServerWriteThread extends Thread{
     /**
      * 发送消息队列
      */
-    private LinkedBlockingQueue<Message> sendQueue;
+    private LinkedBlockingQueue<ClusterMessage> sendQueue;
 
-    public ServerWriteThread(Socket socket, LinkedBlockingQueue<Message> sendQueue){
+    public ServerWriteThread(Socket socket, LinkedBlockingQueue<ClusterMessage> sendQueue){
         this.socket = socket;
         this.sendQueue = sendQueue;
         try {
@@ -43,8 +43,8 @@ public class ServerWriteThread extends Thread{
         while (NodeStatusManager.isRunning()) {
             try {
                 // 阻塞获取待发送请求
-                Message message = sendQueue.take();
-                byte[] buffer = message.getBuffer();
+                ClusterMessage clusterMessage = sendQueue.take();
+                byte[] buffer = clusterMessage.getBuffer();
                 outputStream.writeInt(buffer.length);
                 outputStream.write(buffer);
                 outputStream.flush();
