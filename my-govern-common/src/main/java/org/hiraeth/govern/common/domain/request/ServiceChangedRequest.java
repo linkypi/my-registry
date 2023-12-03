@@ -17,10 +17,10 @@ import java.util.List;
  */
 @Getter
 @Setter
-public class NotifySubscribeRequest extends Request{
+public class ServiceChangedRequest extends Request{
     private String serviceName;
     private List<ServiceInstanceInfo> serviceInstanceInfoAddresses;
-    public NotifySubscribeRequest(String serviceName, List<ServiceInstanceInfo> serviceInstanceInfoAddresses){
+    public ServiceChangedRequest(String serviceName, List<ServiceInstanceInfo> serviceInstanceInfoAddresses){
         super();
         this.serviceName = serviceName;
         this.requestType = RequestType.NotifySubscribe;
@@ -38,14 +38,14 @@ public class NotifySubscribeRequest extends Request{
         CommonUtil.writeJsonString(buffer, serviceInstanceInfoAddresses);
     }
 
-    public static NotifySubscribeRequest parseFrom(Request request) {
+    public static ServiceChangedRequest parseFrom(Request request) {
 
         ByteBuffer buffer = request.getBuffer();
         String serviceName = CommonUtil.readStr(buffer);
         String jsonStr = CommonUtil.readStr(buffer);
         List<ServiceInstanceInfo> serviceInstanceInfos = JSON.parseArray(jsonStr, ServiceInstanceInfo.class);
 
-        NotifySubscribeRequest subscribeRequest = new NotifySubscribeRequest(serviceName, serviceInstanceInfos);
+        ServiceChangedRequest subscribeRequest = new ServiceChangedRequest(serviceName, serviceInstanceInfos);
         subscribeRequest.setRequestId(request.getRequestId());
         subscribeRequest.setRequestType(request.getRequestType());
         subscribeRequest.setTimestamp(request.getTimestamp());

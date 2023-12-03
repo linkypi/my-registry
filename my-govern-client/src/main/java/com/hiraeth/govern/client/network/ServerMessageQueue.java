@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.core;
+package com.hiraeth.govern.client.network;
 
 import org.hiraeth.govern.common.domain.Message;
 
@@ -8,22 +8,22 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @author: lynch
- * @description: 为客户端推送请求或响应的全局队列
- * @date: 2023/12/2 23:39
+ * @description:
+ * @date: 2023/12/3 14:19
  */
-public class ClientMessageQueue {
+public class ServerMessageQueue {
     private static class Singleton {
 
-        static ClientMessageQueue instance = new ClientMessageQueue();
-
+        static ServerMessageQueue instance = new ServerMessageQueue();
     }
 
-    public static ClientMessageQueue getInstance() {
-        return ClientMessageQueue.Singleton.instance;
+    public static ServerMessageQueue getInstance() {
+        return ServerMessageQueue.Singleton.instance;
     }
 
     // connectionId -> messages
-    private static final Map<String,LinkedBlockingQueue<Message>> QUEUES = new ConcurrentHashMap<>();
+    private static final Map<String, LinkedBlockingQueue<Message>> QUEUES = new ConcurrentHashMap<>();
+
 
     public void initQueue(String clientConnectionId) {
         QUEUES.put(clientConnectionId, new LinkedBlockingQueue<>());

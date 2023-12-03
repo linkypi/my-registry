@@ -77,7 +77,9 @@ public class ServiceRegistry {
     public void heartbeat(ServiceInstanceInfo instance) {
         String serviceInstanceId = getServiceInstanceId(instance);
         ServiceInstanceInfo serviceInstanceInfo = serviceInstancesMap.get(serviceInstanceId);
-        serviceInstanceInfo.setLatestHeartbeatTime(new Date().getTime());
+        if (serviceInstanceInfo != null) {
+            serviceInstanceInfo.setLatestHeartbeatTime(new Date().getTime());
+        }
     }
 
     public List<ServiceInstanceInfo> subscribe(String clientConnectionId, String serviceName) {

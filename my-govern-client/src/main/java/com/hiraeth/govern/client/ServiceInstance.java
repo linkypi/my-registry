@@ -2,17 +2,13 @@ package com.hiraeth.govern.client;
 
 import com.alibaba.fastjson.JSON;
 import com.hiraeth.govern.client.config.Configuration;
-import com.hiraeth.govern.client.entity.ServiceInstanceChangeListener;
-import com.hiraeth.govern.client.network.HeartbeatThread;
-import com.hiraeth.govern.client.network.IOThread;
-import com.hiraeth.govern.client.network.ServerConnection;
-import com.hiraeth.govern.client.network.ServerConnectionManager;
+import com.hiraeth.govern.client.network.*;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.*;
 import org.hiraeth.govern.common.domain.request.FetchMetaDataRequest;
-import org.hiraeth.govern.common.domain.request.NotifySubscribeRequest;
+import org.hiraeth.govern.common.domain.request.ServiceChangedRequest;
 import org.hiraeth.govern.common.domain.request.RegisterServiceRequest;
 import org.hiraeth.govern.common.domain.request.SubscribeRequest;
 import org.hiraeth.govern.common.domain.response.FetchMetaDataResponse;
@@ -48,7 +44,6 @@ public class ServiceInstance {
     // 客户端与服务端的selectionKey
     private SelectionKey selectionKey;
 
-    private Map<String, LinkedBlockingQueue<Message>> requestQueue = new ConcurrentHashMap<>();
     private ConcurrentHashMap<Long, Response> responses = new ConcurrentHashMap<>();
 
     private ServerConnectionManager serverConnectionManager;
@@ -140,7 +135,7 @@ public class ServiceInstance {
         }
 
         log.info("register service success.");
-        new HeartbeatThread(requestQueue, responses, routeServerConnection.getConnectionId()).start();
+        new HeartbeatThread(responses, routeServerConnection.getConnectionId()).start();
         log.info("service instance heartbeat started ...");
     }
 
@@ -175,7 +170,7 @@ public class ServiceInstance {
         return cacheServiceRegistry.get(serviceName);
     }
 
-    public void onSubscribeService(NotifySubscribeRequest notifyRequest) {
+    public void onSubscribeService(ServiceChangedRequest notifyRequest) {
         cacheServiceRegistry.put(notifyRequest.getServiceName(), notifyRequest.getServiceInstanceInfoAddresses());
         log.info("notify subscribe service name {}, address: {} ", notifyRequest.getServiceName(),
                 JSON.toJSONString(notifyRequest.getServiceInstanceInfoAddresses()));
@@ -195,7 +190,8 @@ public class ServiceInstance {
         checkConnection(serverAddress);
 
         ServerConnection serverConnection = serverConnectionManager.get(serverAddress.toString());
-        return requestQueue.get(serverConnection.getConnectionId());
+        ServerMessageQueue serverMessageQueue = ServerMessageQueue.getInstance();
+        return serverMessageQueue.getMessageQueue(serverConnection.getConnectionId());
     }
 
     private ServerAddress routeServer() {
@@ -242,7 +238,8 @@ public class ServiceInstance {
     private void fetchMetaDataFromServer(String connectionId) {
         FetchMetaDataRequest fetchMetaDataRequest = new FetchMetaDataRequest();
         fetchMetaDataRequest.buildBuffer();
-        requestQueue.get(connectionId).add(fetchMetaDataRequest);
+        ServerMessageQueue serverMessageQueue = ServerMessageQueue.getInstance();
+        serverMessageQueue.getMessageQueue(connectionId).add(fetchMetaDataRequest);
 
         try {
             fetchMataDataLatch.await();

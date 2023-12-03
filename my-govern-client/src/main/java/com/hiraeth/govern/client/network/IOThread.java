@@ -3,7 +3,7 @@ package com.hiraeth.govern.client.network;
 import com.hiraeth.govern.client.ServiceInstance;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.*;
-import org.hiraeth.govern.common.domain.request.NotifySubscribeRequest;
+import org.hiraeth.govern.common.domain.request.ServiceChangedRequest;
 import org.hiraeth.govern.common.domain.request.Request;
 import org.hiraeth.govern.common.domain.RequestType;
 import org.hiraeth.govern.common.domain.response.FetchMetaDataResponse;
@@ -30,7 +30,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class IOThread extends Thread {
 
     private Selector selector;
-    private Map<String, LinkedBlockingQueue<Message>> requestQueue;
     private ServiceInstance serviceInstance;
     private ServerConnectionManager serverConnectionManager;
     private ConcurrentHashMap<Long, Response> responses;
@@ -40,7 +39,6 @@ public class IOThread extends Thread {
                     ConcurrentHashMap<Long, Response> responses) {
         this.serviceInstance = serviceInstance;
         this.selector = serviceInstance.getSelector();
-        this.requestQueue = serviceInstance.getRequestQueue();
         this.serverConnectionManager = serverConnectionManager;
         this.responses = responses;
 
@@ -128,7 +126,8 @@ public class IOThread extends Thread {
             serverConnectionManager.add(connection);
 
             selectionKey.attach(connection);
-            requestQueue.put(connection.getConnectionId(), new LinkedBlockingQueue<>());
+            ServerMessageQueue serverMessageQueue = ServerMessageQueue.getInstance();
+            serverMessageQueue.initQueue(connection.getConnectionId());
 
             log.info("established connection with server: {}, connection id: {}",
                     socketChannel.getRemoteAddress(), connection.getConnectionId());
@@ -169,7 +168,7 @@ public class IOThread extends Thread {
 
     private void handlerRequest(Request request) {
         if (request.getRequestType() == RequestType.NotifySubscribe) {
-            NotifySubscribeRequest notifyRequest = NotifySubscribeRequest.parseFrom(request);
+            ServiceChangedRequest notifyRequest = ServiceChangedRequest.parseFrom(request);
             serviceInstance.onSubscribeService(notifyRequest);
         }
     }
@@ -190,12 +189,13 @@ public class IOThread extends Thread {
         }
 
         // 从请求队列头部获取一个请求
-        LinkedBlockingQueue<Message> queue = requestQueue.get(connection.getConnectionId());
+        ServerMessageQueue serverMessageQueue = ServerMessageQueue.getInstance();
+        LinkedBlockingQueue<Message> queue = serverMessageQueue.getMessageQueue(connection.getConnectionId());
         if (queue == null) {
             return;
         }
         Message message = queue.peek();
-        if (message == null || message.getMessageType() != MessageType.REQUEST) {
+        if (message == null) {
             return;
         }
 

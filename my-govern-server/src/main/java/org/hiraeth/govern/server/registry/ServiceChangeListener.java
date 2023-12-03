@@ -1,7 +1,7 @@
 package org.hiraeth.govern.server.registry;
 
 import org.hiraeth.govern.common.domain.ServiceInstanceInfo;
-import org.hiraeth.govern.common.domain.request.NotifySubscribeRequest;
+import org.hiraeth.govern.common.domain.request.ServiceChangedRequest;
 import org.hiraeth.govern.server.core.ClientMessageQueue;
 
 import java.util.List;
@@ -20,8 +20,8 @@ public class ServiceChangeListener {
 
     public void onChange(String serviceName, List<ServiceInstanceInfo> serviceInstanceInfos) {
         ClientMessageQueue messageQueue = ClientMessageQueue.getInstance();
-        NotifySubscribeRequest notifySubscribeRequest = new NotifySubscribeRequest(serviceName, serviceInstanceInfos);
-        notifySubscribeRequest.buildBuffer();
-        messageQueue.getMessageQueue(clientConnectionId).add(notifySubscribeRequest);
+        ServiceChangedRequest serviceChangedRequest = new ServiceChangedRequest(serviceName, serviceInstanceInfos);
+        serviceChangedRequest.buildBuffer();
+        messageQueue.getMessageQueue(clientConnectionId).add(serviceChangedRequest);
     }
 }

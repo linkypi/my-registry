@@ -2,13 +2,10 @@ package com.hiraeth.govern.client.network;
 
 import com.hiraeth.govern.client.config.Configuration;
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.common.domain.Message;
 import org.hiraeth.govern.common.domain.response.Response;
 import org.hiraeth.govern.common.domain.request.HeartbeatRequest;
 
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @author: lynch
@@ -18,14 +15,11 @@ import java.util.concurrent.LinkedBlockingQueue;
 @Slf4j
 public class HeartbeatThread extends Thread{
 
-    private Map<String, LinkedBlockingQueue<Message>> requestQueue;
     private ConcurrentHashMap<Long, Response> responses;
     private String connectionId;
     private static final int REQUEST_WAIT_SLEEP_INTERVAL = 200;
-    public HeartbeatThread(Map<String, LinkedBlockingQueue<Message>> requestQueue,
-                           ConcurrentHashMap<Long, Response> responses,
+    public HeartbeatThread(ConcurrentHashMap<Long, Response> responses,
                            String connectionId){
-        this.requestQueue = requestQueue;
         this.connectionId = connectionId;
         this.responses = responses;
     }
@@ -44,7 +38,8 @@ public class HeartbeatThread extends Thread{
                 heartbeatRequest.setServiceInstancePort(serviceInstancePort);
                 heartbeatRequest.setServiceInstanceIp(serviceInstanceIp);
                 heartbeatRequest.buildBuffer();
-                requestQueue.get(connectionId).add(heartbeatRequest);
+                ServerMessageQueue serverMessageQueue = ServerMessageQueue.getInstance();
+                serverMessageQueue.getMessageQueue(connectionId).add(heartbeatRequest);
 
                 // server端处理心跳请求，返回响应
                 while(responses.get(heartbeatRequest.getRequestId()) == null) {
