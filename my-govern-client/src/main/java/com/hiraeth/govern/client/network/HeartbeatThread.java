@@ -3,9 +3,8 @@ package com.hiraeth.govern.client.network;
 import com.hiraeth.govern.client.config.Configuration;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.Message;
-import org.hiraeth.govern.common.domain.Response;
-import org.hiraeth.govern.common.domain.HeartbeatRequest;
-import org.hiraeth.govern.common.domain.Request;
+import org.hiraeth.govern.common.domain.response.Response;
+import org.hiraeth.govern.common.domain.request.HeartbeatRequest;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

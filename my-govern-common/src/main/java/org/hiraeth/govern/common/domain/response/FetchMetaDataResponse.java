@@ -1,10 +1,13 @@
-package org.hiraeth.govern.common.domain;
+package org.hiraeth.govern.common.domain.response;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.domain.RequestType;
+import org.hiraeth.govern.common.domain.ServerAddress;
+import org.hiraeth.govern.common.domain.SlotRang;
 import org.hiraeth.govern.common.util.CommonUtil;
 
 import java.nio.ByteBuffer;

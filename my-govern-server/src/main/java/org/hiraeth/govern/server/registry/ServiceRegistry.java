@@ -1,11 +1,12 @@
 package org.hiraeth.govern.server.registry;
 
+import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.ServiceInstanceInfo;
+import org.hiraeth.govern.common.util.CollectionUtil;
 
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -15,6 +16,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @description:
  * @date: 2023/12/2 16:11
  */
+@Slf4j
 public class ServiceRegistry {
     private ServiceRegistry(){
         new HeartbeatThread().start();
@@ -33,11 +35,11 @@ public class ServiceRegistry {
     }
 
     public Map<String, List<ServiceInstanceInfo>> getServiceRegistry(){
-        return serviceRegistrys;
+        return serviceRegistry;
     }
 
     // 服务注册表
-    private final Map<String, List<ServiceInstanceInfo>> serviceRegistrys = new ConcurrentHashMap<>();
+    private final Map<String, List<ServiceInstanceInfo>> serviceRegistry = new ConcurrentHashMap<>();
     // 服务实例集合
     private final Map<String, ServiceInstanceInfo> serviceInstancesMap = new ConcurrentHashMap<>();
 
@@ -45,16 +47,30 @@ public class ServiceRegistry {
     private final Map<String, List<ServiceChangeListener>> serviceChangeListeners = new ConcurrentHashMap<>();
 
     public void register(ServiceInstanceInfo instance) {
-        List<ServiceInstanceInfo> serviceInstanceInfos = serviceRegistrys.get(instance.getServiceName());
+        List<ServiceInstanceInfo> serviceInstanceInfos = serviceRegistry.get(instance.getServiceName());
         if (serviceInstanceInfos == null) {
             serviceInstanceInfos = new CopyOnWriteArrayList<>();
-            serviceRegistrys.put(instance.getServiceName(), serviceInstanceInfos);
+            serviceRegistry.put(instance.getServiceName(), serviceInstanceInfos);
         }
+
+        boolean changed = false;
         boolean exists = serviceInstanceInfos.stream()
                 .anyMatch(a -> a.getServiceInstanceId().equals(instance.getServiceInstanceId()));
         if (!exists) {
+            changed = true;
             serviceInstanceInfos.add(instance);
             serviceInstancesMap.put(instance.getServiceInstanceId(), instance);
+        }
+
+        // 注册表有变更则通知客户端
+        if (changed) {
+            List<ServiceChangeListener> listeners = serviceChangeListeners.get(instance.getServiceName());
+            if (CollectionUtil.notEmpty(listeners)) {
+                log.info("service instance changed: {}, notify client.", instance.getServiceName());
+                for (ServiceChangeListener listener : listeners) {
+                    listener.onChange(instance.getServiceName(), serviceInstanceInfos);
+                }
+            }
         }
     }
 
@@ -76,7 +92,7 @@ public class ServiceRegistry {
         }
 
         changeListeners.add(new ServiceChangeListener(clientConnectionId));
-        return serviceRegistrys.get(serviceName);
+        return serviceRegistry.get(serviceName);
     }
 
     public static String getServiceInstanceId(ServiceInstanceInfo instance) {

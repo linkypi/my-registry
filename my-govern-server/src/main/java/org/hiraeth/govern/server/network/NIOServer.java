@@ -3,11 +3,10 @@ package org.hiraeth.govern.server.network;
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.*;
+import org.hiraeth.govern.common.domain.request.Request;
+import org.hiraeth.govern.common.domain.response.Response;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.core.ClientSubscribeQueue;
-import org.hiraeth.govern.server.core.RemoteNodeManager;
-import org.hiraeth.govern.server.core.SlotManager;
-import org.hiraeth.govern.server.core.ClientRequestHandler;
+import org.hiraeth.govern.server.core.*;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -16,10 +15,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * controller 节点与客户端通信组件
@@ -35,14 +31,11 @@ public class NIOServer {
     private ClientConnectManager clientConnectManager;
     private ClientRequestHandler clientRequestHandler;
 
-    private Map<String, LinkedBlockingDeque<Message>> responseQueues = new ConcurrentHashMap<>();
-
     public NIOServer(RemoteNodeManager remoteNodeManager, SlotManager slotManager) {
         try {
             this.selector = Selector.open();
             this.clientConnectManager = new ClientConnectManager();
-            this.clientRequestHandler = new ClientRequestHandler(
-                  remoteNodeManager, slotManager, responseQueues);
+            this.clientRequestHandler = new ClientRequestHandler(remoteNodeManager, slotManager);
         } catch (IOException ex) {
             log.error("controller server selector open failed.", ex);
         }
@@ -150,8 +143,8 @@ public class NIOServer {
         private void handleRequest(Request request, ClientConnection connection) throws IOException {
 
             Message message = clientRequestHandler.handleRequest(connection, request);
-            LinkedBlockingDeque<Message> queue = responseQueues.get(connection.getConnectionId());
-            queue.offer(message);
+            ClientMessageQueue messageQueue = ClientMessageQueue.getInstance();
+            messageQueue.addMessage(connection.getConnectionId(), message);
         }
 
         private void accept(ServerSocketChannel serverChannel) throws IOException {
@@ -171,11 +164,8 @@ public class NIOServer {
             clientSelectionKey.attach(clientConnection);
             clientConnectManager.add(clientConnection);
 
-            ClientSubscribeQueue.getInstance().initRequestQueue(clientConnection.getConnectionId());
-
+            ClientMessageQueue.getInstance().initQueue(clientConnection.getConnectionId());
             log.info("established connection with client: {}", socketChannel.getRemoteAddress());
-
-            responseQueues.put(clientConnection.getConnectionId(), new LinkedBlockingDeque<>());
         }
     }
 }

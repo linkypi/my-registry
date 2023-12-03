@@ -1,7 +1,10 @@
-package org.hiraeth.govern.common.domain;
+package org.hiraeth.govern.common.domain.request;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.domain.Message;
+import org.hiraeth.govern.common.domain.MessageType;
+import org.hiraeth.govern.common.domain.RequestType;
 import org.hiraeth.govern.common.snowflake.SnowFlakeIdUtil;
 
 import java.nio.ByteBuffer;

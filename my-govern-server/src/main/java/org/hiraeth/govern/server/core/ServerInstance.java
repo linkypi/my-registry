@@ -32,7 +32,7 @@ public class ServerInstance {
 
     private SlotManager slotManager;
 
-    private org.hiraeth.govern.server.network.NIOServer NIOServer;
+    private NIOServer NIOServer;
 
 
     public ServerInstance(){

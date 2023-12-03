@@ -5,7 +5,6 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.MessageReader;
 import org.hiraeth.govern.common.domain.Message;
-import org.hiraeth.govern.common.domain.Request;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;

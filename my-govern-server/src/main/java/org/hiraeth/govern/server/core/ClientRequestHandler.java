@@ -4,14 +4,16 @@ import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.*;
+import org.hiraeth.govern.common.domain.request.*;
+import org.hiraeth.govern.common.domain.response.FetchMetaDataResponse;
+import org.hiraeth.govern.common.domain.response.Response;
+import org.hiraeth.govern.common.domain.response.SubscribeResponse;
 import org.hiraeth.govern.common.util.CommonUtil;
 import org.hiraeth.govern.server.entity.Slot;
 import org.hiraeth.govern.server.network.ClientConnection;
 
 import java.nio.channels.SocketChannel;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -24,13 +26,10 @@ public class ClientRequestHandler {
 
     private RemoteNodeManager remoteNodeManager;
     private SlotManager slotManager;
-    private Map<String, LinkedBlockingDeque<Message>> responseQueues;
 
-    public ClientRequestHandler(RemoteNodeManager remoteNodeManager, SlotManager slotManager,
-                                Map<String, LinkedBlockingDeque<Message>> responseQueues) {
+    public ClientRequestHandler(RemoteNodeManager remoteNodeManager, SlotManager slotManager) {
         this.remoteNodeManager = remoteNodeManager;
         this.slotManager = slotManager;
-        this.responseQueues = responseQueues;
     }
 
     /**
@@ -39,7 +38,8 @@ public class ClientRequestHandler {
      */
     public void replyResponse(ClientConnection connection) {
         try {
-            LinkedBlockingDeque<Message> queue = responseQueues.get(connection.getConnectionId());
+            ClientMessageQueue messageQueue = ClientMessageQueue.getInstance();
+            LinkedBlockingQueue<Message> queue = messageQueue.getMessageQueue(connection.getConnectionId());
             if (queue.isEmpty()) {
                 return;
             }
@@ -74,22 +74,6 @@ public class ClientRequestHandler {
             return handleSubscribe(request, connection.getConnectionId());
         }
         return null;
-    }
-
-    public void notifyClientSubscribe(ClientConnection connection) {
-        Map<String, LinkedBlockingQueue<Response>> requestQueues = ClientSubscribeQueue.getInstance().getRequestQueues();
-        if(requestQueues == null || requestQueues.size() ==0){
-            return;
-        }
-        LinkedBlockingQueue<Response> baseRequests = requestQueues.get(connection.getConnectionId());
-        if (baseRequests == null || baseRequests.size() ==0) {
-            return;
-        }
-        for (Response response: baseRequests){
-            SocketChannel socketChannel = connection.getSocketChannel();
-//            socketChannel.write(response.getBuffer());
-        }
-
     }
 
     private Response handleSubscribe(Request request, String connectionId) {

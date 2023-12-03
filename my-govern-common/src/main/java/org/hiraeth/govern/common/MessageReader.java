@@ -4,8 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.Message;
-import org.hiraeth.govern.common.domain.Request;
-import org.hiraeth.govern.common.domain.Response;
+import org.hiraeth.govern.common.domain.request.Request;
+import org.hiraeth.govern.common.domain.response.Response;
 import org.hiraeth.govern.common.domain.MessageType;
 
 import java.io.IOException;

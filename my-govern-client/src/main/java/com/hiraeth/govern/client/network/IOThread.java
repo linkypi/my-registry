@@ -3,6 +3,11 @@ package com.hiraeth.govern.client.network;
 import com.hiraeth.govern.client.ServiceInstance;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.*;
+import org.hiraeth.govern.common.domain.request.NotifySubscribeRequest;
+import org.hiraeth.govern.common.domain.request.Request;
+import org.hiraeth.govern.common.domain.RequestType;
+import org.hiraeth.govern.common.domain.response.FetchMetaDataResponse;
+import org.hiraeth.govern.common.domain.response.Response;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -161,9 +166,11 @@ public class IOThread extends Thread {
             log.error("unknown message type: {}", message.getMessageType());
         }
     }
-    private void handlerRequest(Request request) {
-        if (request.getRequestType() == RequestType.Subscribe) {
 
+    private void handlerRequest(Request request) {
+        if (request.getRequestType() == RequestType.NotifySubscribe) {
+            NotifySubscribeRequest notifyRequest = NotifySubscribeRequest.parseFrom(request);
+            serviceInstance.onSubscribeService(notifyRequest);
         }
     }
 

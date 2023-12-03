@@ -1,8 +1,9 @@
-package org.hiraeth.govern.common.domain;
+package org.hiraeth.govern.common.domain.request;
 
 import cn.hutool.core.bean.BeanUtil;
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.domain.RequestType;
 import org.hiraeth.govern.common.snowflake.SnowFlakeIdUtil;
 import org.hiraeth.govern.common.util.CommonUtil;
 

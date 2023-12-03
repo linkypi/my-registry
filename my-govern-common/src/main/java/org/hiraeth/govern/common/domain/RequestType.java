@@ -13,6 +13,7 @@ public enum RequestType {
     RegisterService(2),
     Heartbeat(3),
     Subscribe(4),
+    NotifySubscribe(5),
 
     ;
 

@@ -1,8 +1,11 @@
-package org.hiraeth.govern.common.domain;
+package org.hiraeth.govern.common.domain.response;
 
 import com.alibaba.fastjson.JSON;
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.domain.RequestType;
+import org.hiraeth.govern.common.domain.ServiceInstanceInfo;
+import org.hiraeth.govern.common.domain.request.SubscribeRequest;
 import org.hiraeth.govern.common.util.CommonUtil;
 
 import java.nio.ByteBuffer;
@@ -50,9 +53,9 @@ public class SubscribeResponse extends Response{
 
         SubscribeResponse subscribeResponse = new SubscribeResponse();
         subscribeResponse.setSuccess(baseResponse.isSuccess());
-        subscribeResponse.setRequestId(baseResponse.requestId);
+        subscribeResponse.setRequestId(baseResponse.getRequestId());
         subscribeResponse.setRequestType(baseResponse.getRequestType());
-        subscribeResponse.setTimestamp(baseResponse.timestamp);
+        subscribeResponse.setTimestamp(baseResponse.getTimestamp());
         subscribeResponse.serviceInstanceInfoAddresses = serviceInstanceInfos;
         return subscribeResponse;
     }

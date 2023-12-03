@@ -11,6 +11,13 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.*;
+import org.hiraeth.govern.common.domain.request.FetchMetaDataRequest;
+import org.hiraeth.govern.common.domain.request.NotifySubscribeRequest;
+import org.hiraeth.govern.common.domain.request.RegisterServiceRequest;
+import org.hiraeth.govern.common.domain.request.SubscribeRequest;
+import org.hiraeth.govern.common.domain.response.FetchMetaDataResponse;
+import org.hiraeth.govern.common.domain.response.Response;
+import org.hiraeth.govern.common.domain.response.SubscribeResponse;
 import org.hiraeth.govern.common.util.CollectionUtil;
 import org.hiraeth.govern.common.util.CommonUtil;
 
@@ -143,7 +150,7 @@ public class ServiceInstance {
      * @param serviceName
      * @return
      */
-    public List<ServiceInstanceInfo> subscribe(String serviceName, ServiceInstanceChangeListener changeListener) throws IOException, InterruptedException {
+    public List<ServiceInstanceInfo> subscribe(String serviceName) throws IOException, InterruptedException {
 
         if(cacheServiceRegistry.containsKey(serviceName)){
             return cacheServiceRegistry.get(serviceName);
@@ -166,6 +173,12 @@ public class ServiceInstance {
 
     public List<ServiceInstanceInfo> getServiceInstanceAddresses(String serviceName){
         return cacheServiceRegistry.get(serviceName);
+    }
+
+    public void onSubscribeService(NotifySubscribeRequest notifyRequest) {
+        cacheServiceRegistry.put(notifyRequest.getServiceName(), notifyRequest.getServiceInstanceInfoAddresses());
+        log.info("notify subscribe service name {}, address: {} ", notifyRequest.getServiceName(),
+                JSON.toJSONString(notifyRequest.getServiceInstanceInfoAddresses()));
     }
 
     private Response getResponseBlocking(long requestId) throws InterruptedException {

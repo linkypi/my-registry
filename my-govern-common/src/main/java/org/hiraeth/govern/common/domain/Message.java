@@ -2,6 +2,8 @@ package org.hiraeth.govern.common.domain;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.domain.request.Request;
+import org.hiraeth.govern.common.domain.response.Response;
 
 import java.nio.ByteBuffer;
 
@@ -14,7 +16,7 @@ import static org.hiraeth.govern.common.constant.Constant.REQUEST_HEADER_LENGTH;
  */
 @Getter
 @Setter
-public class Message implements IMessage{
+public class Message {
     protected MessageType messageType;
     protected RequestType requestType;
     protected long requestId;
