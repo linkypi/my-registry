@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.core;
+package org.hiraeth.govern.server.node.core;
 
 import lombok.Getter;
 

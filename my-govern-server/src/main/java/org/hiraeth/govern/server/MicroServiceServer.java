@@ -4,9 +4,9 @@ import com.beust.jcommander.JCommander;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.ConfigurationException;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.core.ServerInstance;
+import org.hiraeth.govern.server.node.core.ServerInstance;
 import org.hiraeth.govern.server.entity.NodeStatus;
-import org.hiraeth.govern.server.core.NodeStatusManager;
+import org.hiraeth.govern.server.node.core.NodeStatusManager;
 
 /**
  * 服务治理平台 Server 端

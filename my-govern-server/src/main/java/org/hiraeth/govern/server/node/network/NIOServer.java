@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.network;
+package org.hiraeth.govern.server.node.network;
 
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
@@ -6,7 +6,10 @@ import org.hiraeth.govern.common.domain.*;
 import org.hiraeth.govern.common.domain.request.Request;
 import org.hiraeth.govern.common.domain.response.Response;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.core.*;
+import org.hiraeth.govern.server.node.core.ClientMessageQueue;
+import org.hiraeth.govern.server.node.core.ClientRequestHandler;
+import org.hiraeth.govern.server.node.core.RemoteNodeManager;
+import org.hiraeth.govern.server.slot.SlotManager;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;

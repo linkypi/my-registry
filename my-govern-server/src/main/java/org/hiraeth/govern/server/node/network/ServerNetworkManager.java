@@ -1,12 +1,12 @@
-package org.hiraeth.govern.server.network;
+package org.hiraeth.govern.server.node.network;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.common.util.CollectionUtil;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.core.NodeStatusManager;
-import org.hiraeth.govern.server.core.RemoteNodeManager;
-import org.hiraeth.govern.server.core.ServerConnectionListener;
+import org.hiraeth.govern.server.node.core.NodeStatusManager;
+import org.hiraeth.govern.server.node.core.RemoteNodeManager;
+import org.hiraeth.govern.server.node.core.ServerConnectionListener;
 import org.hiraeth.govern.server.entity.*;
 
 import java.io.*;

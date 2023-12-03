@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.network;
+package org.hiraeth.govern.server.node.network;
 
 import lombok.Getter;
 import lombok.Setter;

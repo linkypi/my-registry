@@ -1,8 +1,8 @@
-package org.hiraeth.govern.server.registry;
+package org.hiraeth.govern.server.slot.registry;
 
 import org.hiraeth.govern.common.domain.ServiceInstanceInfo;
 import org.hiraeth.govern.common.domain.request.ServiceChangedRequest;
-import org.hiraeth.govern.server.core.ClientMessageQueue;
+import org.hiraeth.govern.server.node.core.ClientMessageQueue;
 
 import java.util.List;
 

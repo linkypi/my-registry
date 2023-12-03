@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.domain.RequestType;
 import org.hiraeth.govern.common.domain.ServerAddress;
-import org.hiraeth.govern.common.domain.SlotRang;
+import org.hiraeth.govern.common.domain.SlotRange;
 import org.hiraeth.govern.common.util.CommonUtil;
 
 import java.nio.ByteBuffer;
@@ -24,7 +24,7 @@ import java.util.Map;
 @Setter
 public class FetchMetaDataResponse extends Response {
 
-    private Map<String, SlotRang> slots;
+    private Map<String, SlotRange> slots;
     private List<ServerAddress> serverAddresses;
 
     public FetchMetaDataResponse() {
@@ -59,12 +59,12 @@ public class FetchMetaDataResponse extends Response {
         buffer.get(bytes);
         String json = new String(bytes);
 
-        Map<String, SlotRang> slotRangMap = new HashMap<>();
+        Map<String, SlotRange> slotRangMap = new HashMap<>();
         Map<String, JSONObject> sourceMap = (Map) JSON.parse(json);
         for (String item : sourceMap.keySet()) {
             JSONObject jsonObject = sourceMap.get(item);
-            SlotRang slotRang = new SlotRang(jsonObject.getIntValue("start"), jsonObject.getIntValue("end"));
-            slotRangMap.put(item, slotRang);
+            SlotRange slotRange = new SlotRange(jsonObject.getIntValue("start"), jsonObject.getIntValue("end"));
+            slotRangMap.put(item, slotRange);
         }
 
         FetchMetaDataResponse response = BeanUtil.copyProperties(baseResponse, FetchMetaDataResponse.class);

@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.network;
+package org.hiraeth.govern.server.node.network;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.ServerAddress;

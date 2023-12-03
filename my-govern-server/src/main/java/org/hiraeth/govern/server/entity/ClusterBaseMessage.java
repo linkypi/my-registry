@@ -4,8 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.util.CommonUtil;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.core.NodeStatusManager;
-import org.hiraeth.govern.server.core.ElectionStage;
+import org.hiraeth.govern.server.node.core.NodeStatusManager;
+import org.hiraeth.govern.server.node.core.ElectionStage;
 
 import java.nio.ByteBuffer;
 

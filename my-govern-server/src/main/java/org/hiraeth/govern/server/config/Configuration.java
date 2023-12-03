@@ -49,6 +49,8 @@ public class Configuration {
     private int clusterNodeCount;
     private int heartbeatTimeoutPeriod;
     private int heartbeatCheckInterval;
+    private int numberOfReplicas;
+    private int numberOfShards;
 
     private ServerAddress serverAddress;
 
@@ -103,6 +105,8 @@ public class Configuration {
             this.clusterNodeCount = CommonUtil.parseInt(configProperties, CLUSTER_NODE_COUNT);
             this.heartbeatTimeoutPeriod = CommonUtil.parseInt(configProperties, HEARTBEAT_TIMEOUT_PERIOD, DEFAULT_HEARTBEAT_TIMEOUT_PERIOD);
             this.heartbeatCheckInterval = CommonUtil.parseInt(configProperties, HEARTBEAT_CHECK_INTERVAL, DEFAULT_HEARTBEAT_CHECK_INTERVAL);
+            this.numberOfReplicas = CommonUtil.parseInt(configProperties, NUMBER_OF_REPLICAS, DEFAULT_NUMBER_OF_REPLICAS);
+            this.numberOfShards = CommonUtil.parseInt(configProperties, NUMBER_OF_SHARDS, DEFAULT_NUMBER_OF_SHARDS);
 
             serverAddress = new ServerAddress(nodeIP, nodeInternalPort, nodeClientHttpPort, nodeClientTcpPort);
 

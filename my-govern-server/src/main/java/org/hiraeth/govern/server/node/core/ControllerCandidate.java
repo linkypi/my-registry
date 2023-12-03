@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.core;
+package org.hiraeth.govern.server.node.core;
 
 import com.alibaba.fastjson.JSON;
 import lombok.Getter;
@@ -6,7 +6,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.*;
-import org.hiraeth.govern.server.network.ServerNetworkManager;
+import org.hiraeth.govern.server.node.network.ServerNetworkManager;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;

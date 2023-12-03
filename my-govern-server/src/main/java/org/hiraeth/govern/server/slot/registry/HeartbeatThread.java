@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.registry;
+package org.hiraeth.govern.server.slot.registry;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.ServiceInstanceInfo;

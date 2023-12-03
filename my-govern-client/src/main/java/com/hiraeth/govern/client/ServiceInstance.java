@@ -47,7 +47,7 @@ public class ServiceInstance {
     private ConcurrentHashMap<Long, Response> responses = new ConcurrentHashMap<>();
 
     private ServerConnectionManager serverConnectionManager;
-    private Map<String, SlotRang> slotsMap;
+    private Map<String, SlotRange> slotsMap;
     private List<ServerAddress> serverAddresses;
     // 当前连接的服务器
     private ServerAddress server;
@@ -214,8 +214,8 @@ public class ServiceInstance {
 
     private String locateServerNodeBySlot(int slot) {
         for (String nodeId : slotsMap.keySet()) {
-            SlotRang slotRang = slotsMap.get(nodeId);
-            if (slot >= slotRang.getStart() && slot <= slotRang.getEnd()) {
+            SlotRange slotRange = slotsMap.get(nodeId);
+            if (slot >= slotRange.getStart() && slot <= slotRange.getEnd()) {
                 return nodeId;
             }
         }

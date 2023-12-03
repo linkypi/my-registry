@@ -1,7 +1,7 @@
-package org.hiraeth.govern.server.network;
+package org.hiraeth.govern.server.node.network;
 
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.server.core.NodeStatusManager;
+import org.hiraeth.govern.server.node.core.NodeStatusManager;
 import org.hiraeth.govern.server.entity.ClusterBaseMessage;
 
 import java.io.DataInputStream;

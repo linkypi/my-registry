@@ -1,13 +1,16 @@
-package org.hiraeth.govern.server.core;
+package org.hiraeth.govern.server.node.core;
 
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.common.domain.SlotRang;
+import org.hiraeth.govern.common.domain.NodeSlotInfo;
+import org.hiraeth.govern.common.domain.SlotRange;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.*;
-import org.hiraeth.govern.server.network.NIOServer;
-import org.hiraeth.govern.server.network.ServerNetworkManager;
+import org.hiraeth.govern.server.node.network.NIOServer;
+import org.hiraeth.govern.server.node.network.ServerNetworkManager;
+import org.hiraeth.govern.server.slot.SlotManager;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -102,8 +105,8 @@ public class ServerInstance {
 
             if(serverRole == ServerRole.Controller){
                 Controller controller = new Controller(remoteNodeManager, serverNetworkManager);
-                Map<String, SlotRang> integerSlotRangMap = controller.allocateSlots();
-                nodeStatusManager.setSlots(integerSlotRangMap);
+                NodeSlotInfo nodeSlotInfo = controller.allocateSlots();
+                nodeStatusManager.setNodeSlotInfo(nodeSlotInfo);
             }else{
                 // 接收槽位分配
                 waitForControllerSlotResult();
@@ -134,8 +137,8 @@ public class ServerInstance {
 
                     // 初始化自身负责的槽位
                     String nodeId = Configuration.getInstance().getNodeId();
-                    SlotRang slotRang = confirm.getSlots().get(nodeId);
-                    slotManager.initSlots(slotRang);
+                    SlotRange slotRange = confirm.getSlots().get(nodeId);
+                    slotManager.initSlots(slotRange);
 
                     persistSlots(confirm);
                     break;
@@ -164,12 +167,15 @@ public class ServerInstance {
     }
 
     private void persistSlots(SlotAllocateResult slotAllocateResult) {
-        Map<String, SlotRang> slots = slotAllocateResult.getSlots();
+        Map<String, SlotRange> slots = slotAllocateResult.getSlots();
+        Map<String, Map<String,List<SlotRange>>> slotReplicas = slotAllocateResult.getSlotReplicas();
         String nodeId = Configuration.getInstance().getNodeId();
-        slotManager.persistAllSlots(slots);
+
+        NodeSlotInfo nodeSlotInfo = slotManager.buildCurrentNodeSlotInfo(slots, slotReplicas);
+        slotManager.persistNodeSlotsInfo(nodeSlotInfo);
         slotManager.persistNodeSlots(slots.get(nodeId));
 
-        NodeStatusManager.getInstance().setSlots(slotAllocateResult.getSlots());
+        NodeStatusManager.getInstance().setNodeSlotInfo(nodeSlotInfo);
 
         log.debug("persist slots success: {}", JSON.toJSONString(slots));
     }

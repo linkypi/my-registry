@@ -1,4 +1,4 @@
-package org.hiraeth.govern.server.core;
+package org.hiraeth.govern.server.node.core;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
@@ -9,8 +9,9 @@ import org.hiraeth.govern.common.domain.response.FetchMetaDataResponse;
 import org.hiraeth.govern.common.domain.response.Response;
 import org.hiraeth.govern.common.domain.response.SubscribeResponse;
 import org.hiraeth.govern.common.util.CommonUtil;
-import org.hiraeth.govern.server.entity.Slot;
-import org.hiraeth.govern.server.network.ClientConnection;
+import org.hiraeth.govern.server.slot.Slot;
+import org.hiraeth.govern.server.node.network.ClientConnection;
+import org.hiraeth.govern.server.slot.SlotManager;
 
 import java.nio.channels.SocketChannel;
 import java.util.List;
@@ -149,7 +150,7 @@ public class ClientRequestHandler {
         NodeStatusManager nodeStatusManager = NodeStatusManager.getInstance();
         FetchMetaDataResponse fetchMetaDataResponse = new FetchMetaDataResponse();
         fetchMetaDataResponse.setRequestId(request.getRequestId());
-        fetchMetaDataResponse.setSlots(nodeStatusManager.getSlots());
+        fetchMetaDataResponse.setSlots(nodeStatusManager.getNodeSlotInfo().getSlots());
         fetchMetaDataResponse.setServerAddresses(remoteNodeManager.getAllOnlineServerAddresses());
         fetchMetaDataResponse.buildBuffer();
         return fetchMetaDataResponse;

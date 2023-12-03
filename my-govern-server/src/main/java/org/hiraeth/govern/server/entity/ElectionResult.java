@@ -3,7 +3,7 @@ package org.hiraeth.govern.server.entity;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.server.core.ElectionStage;
+import org.hiraeth.govern.server.node.core.ElectionStage;
 
 import java.nio.ByteBuffer;
 

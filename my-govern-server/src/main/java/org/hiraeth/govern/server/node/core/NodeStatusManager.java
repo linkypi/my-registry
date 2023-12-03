@@ -1,11 +1,12 @@
-package org.hiraeth.govern.server.core;
+package org.hiraeth.govern.server.node.core;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.domain.NodeSlotInfo;
 import org.hiraeth.govern.server.entity.ElectionResult;
 import org.hiraeth.govern.server.entity.ServerRole;
 import org.hiraeth.govern.server.entity.NodeStatus;
-import org.hiraeth.govern.common.domain.SlotRang;
+import org.hiraeth.govern.common.domain.SlotRange;
 
 import java.util.Map;
 
@@ -41,7 +42,8 @@ public class NodeStatusManager {
     private long startTimestamp;
     // 当前机器的角色
     private ServerRole serverRole;
-    private Map<String, SlotRang> slots;
+
+    private NodeSlotInfo nodeSlotInfo;
 
     public void updateStatus(ElectionResult electionResult, ElectionStage.ELStage elStage){
         this.controllerId = electionResult.getControllerId();

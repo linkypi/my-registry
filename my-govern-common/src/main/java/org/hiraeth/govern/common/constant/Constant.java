@@ -26,6 +26,10 @@ public class Constant {
     public static final String NODE_CLIENT_TCP_PORT = "node.client.tcp.port";
 
     public static final String SERVICE_NAME = "service.name";
+    public static final String NUMBER_OF_SHARDS = "number.of.shards";
+    public static final int DEFAULT_NUMBER_OF_SHARDS = 1;
+    public static final String NUMBER_OF_REPLICAS = "number.of.replicas";
+    public static final int DEFAULT_NUMBER_OF_REPLICAS = 1;
     public static final String SERVICE_INSTANCE_IP = "service.instance.ip";
     public static final String SERVICE_INSTANCE_PORT = "service.instance.port";
 

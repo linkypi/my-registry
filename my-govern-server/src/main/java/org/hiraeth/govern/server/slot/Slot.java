@@ -1,9 +1,9 @@
-package org.hiraeth.govern.server.entity;
+package org.hiraeth.govern.server.slot;
 
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.domain.ServiceInstanceInfo;
-import org.hiraeth.govern.server.registry.ServiceRegistry;
+import org.hiraeth.govern.server.slot.registry.ServiceRegistry;
 
 import java.util.List;
 

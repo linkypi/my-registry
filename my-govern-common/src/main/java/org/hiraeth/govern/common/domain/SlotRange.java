@@ -10,10 +10,10 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-public class SlotRang{
+public class SlotRange {
     private int start;
     private int end;
-    public SlotRang(int start,int end){
+    public SlotRange(int start, int end){
         this.start = start;
         this.end = end;
     }
