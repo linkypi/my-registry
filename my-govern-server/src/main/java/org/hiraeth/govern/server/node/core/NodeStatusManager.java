@@ -3,12 +3,9 @@ package org.hiraeth.govern.server.node.core;
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.domain.NodeSlotInfo;
-import org.hiraeth.govern.server.entity.ElectionResult;
+import org.hiraeth.govern.server.entity.request.ElectionResult;
 import org.hiraeth.govern.server.entity.ServerRole;
 import org.hiraeth.govern.server.entity.NodeStatus;
-import org.hiraeth.govern.common.domain.SlotRange;
-
-import java.util.Map;
 
 /**
  * @author: lynch

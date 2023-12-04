@@ -1,8 +1,9 @@
-package org.hiraeth.govern.server.entity;
+package org.hiraeth.govern.server.entity.request;
 
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.util.CommonUtil;
+import org.hiraeth.govern.server.entity.ServerRequestType;
 
 import java.nio.ByteBuffer;
 
@@ -13,7 +14,7 @@ import java.nio.ByteBuffer;
  */
 @Getter
 @Setter
-public class HeartbeatForwardRequest extends ClusterBaseMessage{
+public class HeartbeatForwardRequest extends RequestMessage {
 
     private String serviceName;
     /**
@@ -25,23 +26,26 @@ public class HeartbeatForwardRequest extends ClusterBaseMessage{
      */
     private int serviceInstancePort;
 
+    public HeartbeatForwardRequest() {
+        super();
+        this.setRequestType(ServerRequestType.HeartbeatForward.getValue());
+    }
+
     public HeartbeatForwardRequest(String serviceName, String serviceInstanceIp, int serviceInstancePort) {
         super();
         this.serviceInstanceIp = serviceInstanceIp;
         this.serviceInstancePort = serviceInstancePort;
         this.serviceName = serviceName;
-        this.setClusterMessageType(ClusterMessageType.RegisterForward);
+        this.setRequestType(ServerRequestType.HeartbeatForward.getValue());
     }
 
-    public ClusterMessage toMessage(){
-        ByteBuffer buffer = toBuffer();
-        return new ClusterMessage(clusterMessageType, buffer.array());
+    public void buildBuffer(){
+        toBuffer();
     }
-
     public ByteBuffer toBuffer() {
         int length = CommonUtil.getJsonStringLength(serviceName) +
         CommonUtil.getJsonStringLength(serviceInstanceIp);
-        return super.convertToBuffer(12 + length);
+        return super.toBuffer(12 + length);
     }
 
     @Override
@@ -50,7 +54,7 @@ public class HeartbeatForwardRequest extends ClusterBaseMessage{
         CommonUtil.writeStr(buffer, serviceName);
         CommonUtil.writeStr(buffer, serviceInstanceIp);
     }
-    public static HeartbeatForwardRequest parseFrom(ClusterBaseMessage messageBase) {
+    public static HeartbeatForwardRequest parseFrom(RequestMessage messageBase) {
         ByteBuffer buffer = messageBase.getBuffer();
         int port = buffer.getInt();
         String name = CommonUtil.readStr(buffer);

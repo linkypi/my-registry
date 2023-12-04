@@ -1,6 +1,5 @@
 package org.hiraeth.govern.server.node.network;
 
-import cn.hutool.core.date.LocalDateTimeUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.common.util.CollectionUtil;
@@ -11,11 +10,9 @@ import org.hiraeth.govern.server.entity.*;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -49,11 +46,11 @@ public class ServerNetworkManager extends NetworkManager {
     /**
      * 发送队列
      */
-    private Map<String, LinkedBlockingQueue<ClusterMessage>> sendQueues = new ConcurrentHashMap<>();
+    private Map<String, LinkedBlockingQueue<ServerMessage>> sendQueues = new ConcurrentHashMap<>();
     /**
      * 接收队列
      */
-    private Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>> receiveQueues = new ConcurrentHashMap<>();
+    private Map<Integer, LinkedBlockingQueue<ServerMessage>> receiveQueues = new ConcurrentHashMap<>();
 
     /**
      * 远程controller节点管理组件
@@ -122,13 +119,13 @@ public class ServerNetworkManager extends NetworkManager {
     /**
      * 发送网络请求
      * @param remoteNodeId
-     * @param clusterMessage
+     * @param message
      * @return
      */
-    public boolean sendRequest(String remoteNodeId, ClusterMessage clusterMessage) {
+    public boolean sendRequest(String remoteNodeId, ServerMessage message) {
         try {
-            LinkedBlockingQueue<ClusterMessage> sendQueue = sendQueues.get(remoteNodeId);
-            sendQueue.put(clusterMessage);
+            LinkedBlockingQueue<ServerMessage> sendQueue = sendQueues.get(remoteNodeId);
+            sendQueue.put(message);
         } catch (Exception ex) {
             log.error("put request to send queue failed, remote node id: {}", remoteNodeId, ex);
             return false;
@@ -203,11 +200,10 @@ public class ServerNetworkManager extends NetworkManager {
 
     public void startServerIOThreads(String remoteNodeId, Socket socket) {
 
-        LinkedBlockingQueue<ClusterMessage> sendQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<ServerMessage> sendQueue = new LinkedBlockingQueue<>();
         // 初始化发送请求队列
         sendQueues.put(remoteNodeId, sendQueue);
 
-        ServerMessageQueue.getInstance().initQueue();
         new ServerWriteThread(socket, sendQueue).start();
         new ServerReadThread(socket).start();
     }

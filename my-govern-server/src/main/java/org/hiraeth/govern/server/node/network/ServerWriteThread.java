@@ -1,8 +1,9 @@
 package org.hiraeth.govern.server.node.network;
 
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.server.entity.ServerRequestType;
 import org.hiraeth.govern.server.node.core.NodeStatusManager;
-import org.hiraeth.govern.server.entity.ClusterMessage;
+import org.hiraeth.govern.server.entity.ServerMessage;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -24,9 +25,9 @@ public class ServerWriteThread extends Thread{
     /**
      * 发送消息队列
      */
-    private LinkedBlockingQueue<ClusterMessage> sendQueue;
+    private LinkedBlockingQueue<ServerMessage> sendQueue;
 
-    public ServerWriteThread(Socket socket, LinkedBlockingQueue<ClusterMessage> sendQueue){
+    public ServerWriteThread(Socket socket, LinkedBlockingQueue<ServerMessage> sendQueue){
         this.socket = socket;
         this.sendQueue = sendQueue;
         try {
@@ -43,12 +44,15 @@ public class ServerWriteThread extends Thread{
         while (NodeStatusManager.isRunning()) {
             try {
                 // 阻塞获取待发送请求
-                ClusterMessage clusterMessage = sendQueue.take();
-                byte[] buffer = clusterMessage.getBuffer();
+                ServerMessage message = sendQueue.take();
+                byte[] buffer = message.getBuffer().array();
                 outputStream.writeInt(buffer.length);
                 outputStream.write(buffer);
                 outputStream.flush();
 
+                ServerRequestType requestType = ServerRequestType.of(message.getRequestType());
+//                log.info("send message to {}, msg type {}, request type: {}, request id: {}",
+//                       message.getToNodeId(), message.getMessageType(), requestType, message.getRequestId());
 //                log.info("send message to remote node: {}, message type: {}, message size : {} bytes.",
 //                        socket.getRemoteSocketAddress(), message.getMessageType().name(), buffer.length);
             }catch (InterruptedException ex){

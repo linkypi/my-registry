@@ -87,13 +87,13 @@ public class ServiceInstance {
         register();
     }
 
-    private void checkConnection(ServerAddress serverAddress) throws IOException {
+    private void checkConnection(ServerAddress serverAddress) throws IOException, InterruptedException {
         if(!serverConnectionManager.hasConnect(serverAddress.toString())){
             routeServerConnection = connectServer(serverAddress);
         }
     }
 
-    private void connectController() throws IOException {
+    private void connectController() throws IOException, InterruptedException {
         server = chooseControllerCandidate();
         controllerConnection = connectServer(server);
         fetchMetaDataFromServer(controllerConnection.getConnectionId());
@@ -125,7 +125,14 @@ public class ServiceInstance {
 
         LinkedBlockingQueue<Message> queue = getRoutServerSendQueue();
         queue.add(registerServiceRequest);
-        log.info("register service {} to server {}.", configuration.getServiceName(), routeServerConnection.getAddress());
+
+        String address = "-";
+        if (routeServerConnection != null) {
+            address = routeServerConnection.getAddress();
+        }else{
+            throw new NullPointerException("routeServerConnection null");
+        }
+        log.info("register service {} to server {}.", configuration.getServiceName(), address);
 
         Response response = getResponseBlocking(registerServiceRequest.getRequestId());
 
@@ -185,7 +192,7 @@ public class ServiceInstance {
         return response;
     }
 
-    private LinkedBlockingQueue<Message> getRoutServerSendQueue() throws IOException {
+    private LinkedBlockingQueue<Message> getRoutServerSendQueue() throws IOException, InterruptedException {
         ServerAddress serverAddress = routeServer();
         checkConnection(serverAddress);
 
@@ -249,7 +256,7 @@ public class ServiceInstance {
         log.info("receive slots from server success: {}", JSON.toJSONString(slotsMap));
     }
 
-    private ServerConnection connectServer(ServerAddress address) throws IOException {
+    private ServerConnection connectServer(ServerAddress address) throws IOException, InterruptedException {
         InetSocketAddress inetSocketAddress = new InetSocketAddress(address.getHost(), address.getPort());
         SocketChannel channel = SocketChannel.open();
         channel.configureBlocking(false);
@@ -266,6 +273,7 @@ public class ServiceInstance {
         ServerConnection serverConnection = null;
 
         do {
+            Thread.sleep(200);
             serverConnection = serverConnectionManager.get(addressKey);
         } while (serverConnection == null);
 

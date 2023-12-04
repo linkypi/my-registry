@@ -23,7 +23,7 @@ public class HeartbeatRequest extends Request {
 
     public HeartbeatRequest(){
         super();
-        this.requestType = RequestType.Heartbeat;
+        this.requestType = RequestType.Heartbeat.getValue();
         this.requestId = SnowFlakeIdUtil.getNextId();
         this.timestamp = System.currentTimeMillis();
     }

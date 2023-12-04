@@ -1,13 +1,10 @@
-package org.hiraeth.govern.server.entity;
+package org.hiraeth.govern.server.entity.request;
 
 import cn.hutool.core.bean.BeanUtil;
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.domain.NodeSlotInfo;
-import org.hiraeth.govern.common.domain.SlotRange;
-
-import java.util.List;
-import java.util.Map;
+import org.hiraeth.govern.server.entity.ServerRequestType;
 
 /**
  * @author: lynch
@@ -16,16 +13,17 @@ import java.util.Map;
  */
 @Getter
 @Setter
-public class SlotAllocateResultConfirm extends SlotAllocateResult{
+public class SlotAllocateResultConfirm extends SlotAllocateResult {
 
     public SlotAllocateResultConfirm(){
     }
 
     public SlotAllocateResultConfirm(NodeSlotInfo nodeSlotInfo){
         super(nodeSlotInfo.getSlots(), nodeSlotInfo.getSlotReplicas());
-        this.clusterMessageType = ClusterMessageType.AllocateSlotsConfirm;
+        this.requestType = ServerRequestType.AllocateSlotsConfirm.getValue();
     }
-    public static SlotAllocateResultConfirm parseFrom(ClusterBaseMessage messageBase){
+
+    public static SlotAllocateResultConfirm parseFrom(RequestMessage messageBase){
         SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(messageBase);
         return BeanUtil.copyProperties(slotAllocateResult, SlotAllocateResultConfirm.class);
     }

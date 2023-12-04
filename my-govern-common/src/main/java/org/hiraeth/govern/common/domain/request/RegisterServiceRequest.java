@@ -30,7 +30,7 @@ public class RegisterServiceRequest extends Request {
 
     public RegisterServiceRequest() {
         super();
-        this.requestType = RequestType.RegisterService;
+        this.requestType = RequestType.RegisterService.getValue();
         this.requestId = SnowFlakeIdUtil.getNextId();
         this.timestamp = System.currentTimeMillis();
     }

@@ -163,6 +163,10 @@ public class CommonUtil {
         return bytes.length;
     }
 
+    public static boolean readBoolean(ByteBuffer buffer) {
+        int flag = buffer.getInt();
+        return flag == 1;
+    }
     public static String readStr(ByteBuffer buffer) {
         int length = buffer.getInt();
         if (length == 0) {

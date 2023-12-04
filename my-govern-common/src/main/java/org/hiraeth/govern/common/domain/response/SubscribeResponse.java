@@ -27,7 +27,7 @@ public class SubscribeResponse extends Response{
     }
     public SubscribeResponse(SubscribeRequest request){
         super();
-        this.requestType = RequestType.Subscribe;
+        this.requestType = RequestType.Subscribe.getValue();
         this.requestId = request.getRequestId();
         this.timestamp = System.currentTimeMillis();
     }

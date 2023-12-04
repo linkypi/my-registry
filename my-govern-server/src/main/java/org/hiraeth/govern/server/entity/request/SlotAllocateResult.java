@@ -1,11 +1,14 @@
-package org.hiraeth.govern.server.entity;
+package org.hiraeth.govern.server.entity.request;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.domain.SlotRange;
+import org.hiraeth.govern.common.domain.SlotReplica;
 import org.hiraeth.govern.common.util.CommonUtil;
+import org.hiraeth.govern.server.entity.ServerRequestType;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -19,15 +22,15 @@ import java.util.Map;
  */
 @Getter
 @Setter
-public class SlotAllocateResult extends ClusterBaseMessage {
+public class SlotAllocateResult extends RequestMessage {
 
     public SlotAllocateResult(){}
     private Map<String, SlotRange> slots;
-    private Map<String,Map<String, List<SlotRange>>> slotReplicas;
+    private Map<String, List<SlotReplica>> slotReplicas;
 
-    public SlotAllocateResult(Map<String, SlotRange> slots, Map<String,Map<String, List<SlotRange>>> slotReplicas) {
+    public SlotAllocateResult(Map<String, SlotRange> slots, Map<String, List<SlotReplica>> slotReplicas) {
         super();
-        this.clusterMessageType = ClusterMessageType.AllocateSlots;
+        this.requestType = ServerRequestType.AllocateSlots.getValue();
         this.slots = slots;
         this.slotReplicas = slotReplicas;
     }
@@ -38,18 +41,17 @@ public class SlotAllocateResult extends ClusterBaseMessage {
         CommonUtil.writeJsonString(buffer, slotReplicas);
     }
 
+    public void buildBuffer(){
+        toBuffer();
+    }
+
     public ByteBuffer toBuffer() {
         int length = CommonUtil.getJsonStringLength(slots) +
                 CommonUtil.getJsonStringLength(slotReplicas);
-        return super.convertToBuffer(length + 8);
+        return super.toBuffer(length + 8);
     }
 
-    public ClusterMessage toMessage() {
-        ByteBuffer buffer = toBuffer();
-        return new ClusterMessage(clusterMessageType, buffer.array());
-    }
-
-    public static SlotAllocateResult parseFrom(ClusterBaseMessage messageBase) {
+    public static SlotAllocateResult parseFrom(RequestMessage messageBase) {
 
         ByteBuffer buffer = messageBase.getBuffer();
         String json = CommonUtil.readStr(buffer);
@@ -62,17 +64,13 @@ public class SlotAllocateResult extends ClusterBaseMessage {
         }
 
         String jsonStr = CommonUtil.readStr(buffer);
-        Map<String, JSONObject> jsonObjectMap = (Map) JSON.parse(jsonStr);
+        Map<String, JSONArray> jsonObjectMap = (Map) JSON.parse(jsonStr);
 
-        Map<String, Map<String, List<SlotRange>>> replicasMap = new HashMap<>();
-        for (String item : jsonObjectMap.keySet()) {
-            Map<String, List<SlotRange>> jsonObject = (Map) jsonObjectMap.get(item);
-            Map<String, List<SlotRange>> temp = new HashMap<>();
-            for (String key : jsonObject.keySet()) {
-                List<SlotRange> ranges = JSON.parseArray(jsonObject.get(key).toString(), SlotRange.class);
-                temp.put(key, ranges);
-                replicasMap.put(item, temp);
-            }
+        Map<String, List<SlotReplica>> replicasMap = new HashMap<>();
+        for (String nodeId : jsonObjectMap.keySet()) {
+            String jsonArr = jsonObjectMap.get(nodeId).toString();
+            List<SlotReplica> replicas = JSON.parseArray(jsonArr, SlotReplica.class);
+            replicasMap.put(nodeId, replicas);
         }
 
         SlotAllocateResult slotAllocateResult = new SlotAllocateResult(slotRangMap, replicasMap);

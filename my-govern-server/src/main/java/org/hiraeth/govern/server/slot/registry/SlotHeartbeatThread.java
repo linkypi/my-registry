@@ -37,10 +37,10 @@ public class SlotHeartbeatThread extends Thread {
             try {
                 long now = new Date().getTime();
 
-                List<String> instanceIds = new ArrayList<>();
                 List<Slot> slots = slotManager.getSlots().stream().filter(a->!a.isReplica()).collect(Collectors.toList());
                 for (Slot slot : slots) {
                     Map<String, ServiceInstanceInfo> serviceInstances = slot.getServiceRegistry().getServiceInstances();
+                    List<String> instanceIds = new ArrayList<>();
                     for (ServiceInstanceInfo instance : serviceInstances.values()) {
                         if (instance.getLatestHeartbeatTime() == null) {
                             instance.setLatestHeartbeatTime(new Date().getTime());

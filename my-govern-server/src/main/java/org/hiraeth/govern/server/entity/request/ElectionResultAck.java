@@ -1,9 +1,10 @@
-package org.hiraeth.govern.server.entity;
+package org.hiraeth.govern.server.entity.request;
 
 import cn.hutool.core.bean.BeanUtil;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.server.entity.ServerRequestType;
 
 import java.nio.ByteBuffer;
 
@@ -16,7 +17,7 @@ import java.nio.ByteBuffer;
 @Slf4j
 @Getter
 @Setter
-public class ElectionResultAck extends ClusterBaseMessage{
+public class ElectionResultAck extends RequestMessage {
 
     @Getter
     public enum AckResult {
@@ -34,15 +35,14 @@ public class ElectionResultAck extends ClusterBaseMessage{
 
     public ElectionResultAck(String controllerId, int epoch, int result){
         super();
-        this.clusterMessageType = ClusterMessageType.ElectionCompleteAck;
+        this.requestType = ServerRequestType.ElectionCompleteAck.getValue();
         this.controllerId = controllerId;
         this.epoch = epoch;
         this.result = result;
     }
 
-    public ClusterMessage toMessage(){
-        ByteBuffer buffer = toBuffer();
-        return new ClusterMessage(clusterMessageType, buffer.array());
+    public void buildBuffer(){
+         super.toBuffer(4);
     }
 
     @Override
@@ -51,7 +51,7 @@ public class ElectionResultAck extends ClusterBaseMessage{
     }
 
     public ByteBuffer toBuffer(){
-        return super.convertToBuffer(4);
+        return super.toBuffer(4);
     }
 
     public static ElectionResultAck newAccept(String controllerId, int epoch){
@@ -64,7 +64,7 @@ public class ElectionResultAck extends ClusterBaseMessage{
                 AckResult.Rejected.getValue());
     }
 
-    public static ElectionResultAck parseFrom(ClusterBaseMessage messageBase) {
+    public static ElectionResultAck parseFrom(RequestMessage messageBase) {
         ByteBuffer buffer = messageBase.getBuffer();
         ElectionResultAck resultAck = BeanUtil.copyProperties(messageBase, ElectionResultAck.class);
         resultAck.setResult(buffer.getInt());

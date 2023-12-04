@@ -24,7 +24,7 @@ public class Response extends Message {
     }
 
     public Response(RequestType requestType, boolean success){
-        this.requestType = requestType;
+        this.requestType = requestType.getValue();
         this.success = success;
         messageType = MessageType.RESPONSE;
     }
@@ -40,7 +40,6 @@ public class Response extends Message {
 
     public static Response toResponse(ByteBuffer buffer) {
         int type = buffer.getInt();
-        RequestType requestType = RequestType.of(type);
 
         Response response = new Response();
         response.requestId = buffer.getLong();
@@ -49,7 +48,7 @@ public class Response extends Message {
         int sucInt = buffer.getInt();
         response.success = sucInt == 1;
         response.buffer = buffer;
-        response.requestType = requestType;
+        response.requestType = type;
         return response;
     }
 }

@@ -8,7 +8,7 @@ import lombok.Getter;
  * @date: 2023/11/28 17:39
  */
 @Getter
-public enum ClusterMessageType {
+public enum ServerRequestType {
 
     /**
      * 发送当前节点信息，包括 nodeId, isControllerCandidate等信息
@@ -34,13 +34,13 @@ public enum ClusterMessageType {
     RegisterForward(9),
     HeartbeatForward(10),
     ;
-    ClusterMessageType(int value){
+    ServerRequestType(int value){
         this.value = value;
     }
     private int value;
 
-    public static ClusterMessageType of(int value){
-        for(ClusterMessageType item: ClusterMessageType.values()){
+    public static ServerRequestType of(int value){
+        for(ServerRequestType item: ServerRequestType.values()){
             if(value == item.value){
                 return item;
             }

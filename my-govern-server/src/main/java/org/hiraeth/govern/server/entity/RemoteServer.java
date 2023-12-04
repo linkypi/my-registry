@@ -43,7 +43,7 @@ public class RemoteServer {
 
         int length = CommonUtil.getStrLength(nodeId) + CommonUtil.getStrLength(host);
         ByteBuffer buffer = ByteBuffer.allocate(28 + length);
-        buffer.putInt(ClusterMessageType.NodeInfo.getValue());
+        buffer.putInt(ServerRequestType.NodeInfo.getValue());
         buffer.putInt(isControllerCandidate ? 1 : 0);
         buffer.putInt(clientHttpPort);
         buffer.putInt(clientTcpPort);
@@ -55,7 +55,7 @@ public class RemoteServer {
 
     public static RemoteServer parseFrom(ByteBuffer buffer) {
         int messageType = buffer.getInt();
-        if (ClusterMessageType.NodeInfo.getValue() == messageType) {
+        if (ServerRequestType.NodeInfo.getValue() == messageType) {
             int isCandidate = buffer.getInt();
             int clientHttpPort = buffer.getInt();
             int clientTcpPort = buffer.getInt();

@@ -23,5 +23,5 @@ public class NodeSlotInfo {
     // 槽位分片，即一份完整数据会拆分到几个节点存储
     private Map<String, SlotRange> slots;
     // 当前节点存放的其他节点槽位副本信息
-    private Map<String,Map<String, List<SlotRange>>> slotReplicas;
+    private Map<String, List<SlotReplica>> slotReplicas;
 }

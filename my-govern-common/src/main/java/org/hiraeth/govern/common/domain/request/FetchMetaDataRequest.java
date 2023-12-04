@@ -15,7 +15,7 @@ public class FetchMetaDataRequest extends Request {
 
     public FetchMetaDataRequest() {
         super();
-        requestType = RequestType.FetchMetaData;
+        requestType = RequestType.FetchMetaData.getValue();
     }
 
 }

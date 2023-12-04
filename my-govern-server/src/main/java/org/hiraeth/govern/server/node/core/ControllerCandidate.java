@@ -4,8 +4,13 @@ import com.alibaba.fastjson.JSON;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.common.snowflake.SnowFlakeIdUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.*;
+import org.hiraeth.govern.server.entity.request.ElectionResult;
+import org.hiraeth.govern.server.entity.request.ElectionResultAck;
+import org.hiraeth.govern.server.entity.request.RequestMessage;
+import org.hiraeth.govern.server.entity.request.Vote;
 import org.hiraeth.govern.server.node.network.ServerNetworkManager;
 
 import java.util.*;
@@ -81,11 +86,13 @@ public class ControllerCandidate {
     /**
      * leader 选举完成后通知其他节点
      */
-    public void notifyOtherCandidates(String controllerId) {
+    private void notifyOtherCandidates(String controllerId) {
         List<RemoteServer> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
         ElectionResult electionResult = ElectionResult.newElectingResult(controllerId, voteRound);
+        electionResult.buildBuffer();
+
         for (RemoteServer remoteServer : otherControllerCandidates) {
-            serverNetworkManager.sendRequest(remoteServer.getNodeId(), electionResult.toMessage());
+            serverNetworkManager.sendRequest(remoteServer.getNodeId(), electionResult);
         }
         log.info("notified election result: {}", JSON.toJSONString(electionResult));
     }
@@ -110,6 +117,7 @@ public class ControllerCandidate {
         }
         currentVote.setRound(voteRound);
         currentVote.setTargetNodeId(targetId);
+        currentVote.setBuffer(null);
 
         votes.clear();
         // 首先给自己投一票
@@ -119,11 +127,15 @@ public class ControllerCandidate {
         // 若在本轮投票仍未出现结果, 则发起新一轮投票, 投票的节点是当前所有选票节点中nodeId最大的一个
         List<RemoteServer> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
 
+        currentVote.buildBuffer();
+
         for (RemoteServer remoteServer : otherControllerCandidates) {
-            currentVote.setFromNodeId(currentNodeId);
             String remoteNodeId = remoteServer.getNodeId();
-            serverNetworkManager.sendRequest(remoteNodeId, currentVote.toMessage());
-            log.info("send vote to remote node: {}, vote info: {}", remoteNodeId, JSON.toJSONString(currentVote));
+            currentVote.setFromNodeId(currentNodeId);
+            currentVote.setToNodeId(remoteNodeId);
+            currentVote.setRequestId(SnowFlakeIdUtil.getNextId());
+            serverNetworkManager.sendRequest(remoteNodeId, currentVote);
+            log.info("send vote to remote node: {}, vote round: {}", remoteNodeId, currentVote.getRound());
         }
     }
 
@@ -139,8 +151,8 @@ public class ControllerCandidate {
         while (NodeStatusManager.isRunning() && ElectionStage.getStatus() == ElectionStage.ELStage.ELECTING) {
             try {
                 Thread.sleep(300);
-                if (messageQueue.countElectingMessage(ClusterMessageType.Vote) > 0) {
-                    ClusterBaseMessage messageBase = messageQueue.takeElectingMessage(ClusterMessageType.Vote);
+                if (messageQueue.countRequestMessage(ServerRequestType.Vote) > 0) {
+                    RequestMessage messageBase = messageQueue.takeRequestMessage(ServerRequestType.Vote);
                     Vote vote = Vote.parseFrom(messageBase);
                     String leaderId = handleVoteResponse(vote);
                     if (leaderId != null) {
@@ -165,17 +177,17 @@ public class ControllerCandidate {
             try {
                 ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
                 while (NodeStatusManager.isRunning()) {
-                    if (messageQueue.countElectingMessage(ClusterMessageType.ElectionComplete) > 0) {
+                    if (messageQueue.countRequestMessage(ServerRequestType.ElectionComplete) > 0) {
                         handleElectionResult();
                     }
 
-                    if (messageQueue.countElectingMessage(ClusterMessageType.ElectionCompleteAck) > 0) {
+                    if (messageQueue.countRequestMessage(ServerRequestType.ElectionCompleteAck) > 0) {
                         if(ackElectionResult()){
                             break;
                         }
                     }
 
-                    if (messageQueue.countElectingMessage(ClusterMessageType.Leading) > 0) {
+                    if (messageQueue.countRequestMessage(ServerRequestType.Leading) > 0) {
                         if(handleLeadingResult()){
                             break;
                         }
@@ -190,9 +202,9 @@ public class ControllerCandidate {
 
         private boolean handleLeadingResult() {
             ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
-            ClusterBaseMessage messageBase = messageQueue.takeElectingMessage(ClusterMessageType.Leading);
+            RequestMessage messageBase = messageQueue.takeRequestMessage(ServerRequestType.Leading);
             log.info("receive Leading message !!! {}", JSON.toJSONString(messageBase));
-            if (electionResult != null && electionResult.getControllerId() != messageBase.getControllerId()) {
+            if (electionResult != null && !Objects.equals(electionResult.getControllerId(), messageBase.getControllerId())) {
                 log.error("receive Leading message, but the controller id is not the same, current election result: {}, " +
                         "remote election result: {}", JSON.toJSONString(electionResult), JSON.toJSONString(messageBase));
             }
@@ -202,7 +214,7 @@ public class ControllerCandidate {
 
         private boolean handleElectionResult() {
             ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
-            ClusterBaseMessage messageBase = messageQueue.takeElectingMessage(ClusterMessageType.ElectionComplete);
+            RequestMessage messageBase = messageQueue.takeRequestMessage(ServerRequestType.ElectionComplete);
             ElectionResult remoteEleResult = ElectionResult.parseFrom(messageBase);
             log.info("election result notification: {}. ", JSON.toJSONString(remoteEleResult));
 
@@ -234,7 +246,7 @@ public class ControllerCandidate {
 
         private boolean ackElectionResult() {
             ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
-            ClusterBaseMessage messageBase = messageQueue.takeElectingMessage(ClusterMessageType.ElectionCompleteAck);
+            RequestMessage messageBase = messageQueue.takeRequestMessage(ServerRequestType.ElectionCompleteAck);
             ElectionResultAck remoteResultAck = ElectionResultAck.parseFrom(messageBase);
             if (ElectionResultAck.AckResult.Accepted.getValue() == remoteResultAck.getResult()) {
                 confirmList.add(remoteResultAck.getFromNodeId());
@@ -258,10 +270,14 @@ public class ControllerCandidate {
                 String controllerId = remoteResultAck.getControllerId();
                 int epoch = remoteResultAck.getEpoch();
 
-                ClusterBaseMessage message = new ClusterBaseMessage(ClusterMessageType.Leading, controllerId, epoch);
+                RequestMessage message = new RequestMessage();
+                message.setRequestType(ServerRequestType.Leading.getValue());
+                message.setControllerId(controllerId);
+                message.setEpoch(epoch);
+                message.buildBuffer();
 
                 for (RemoteServer remoteServer : remoteNodeManager.getOtherControllerCandidates()) {
-                    serverNetworkManager.sendRequest(remoteServer.getNodeId(), message.toMessage());
+                    serverNetworkManager.sendRequest(remoteServer.getNodeId(), message);
                 }
                 log.info("election has finished, all the other controller nodes has been notified.");
 
@@ -278,10 +294,12 @@ public class ControllerCandidate {
          */
         private void replyRejectedResult(ElectionResult remoteEleResult) {
             ElectionResultAck completeAck = ElectionResultAck.newReject(electionResult.getControllerId(), electionResult.getEpoch());
+            completeAck.buildBuffer();
+
             log.info("rejected remote election result: {}, because current election result be better: {}",
                     JSON.toJSONString(remoteEleResult), JSON.toJSONString(electionResult));
             // 发送 ACK 给 leader , 确保其他非leader节点都已收到
-            serverNetworkManager.sendRequest(remoteEleResult.getFromNodeId(), completeAck.toMessage());
+            serverNetworkManager.sendRequest(remoteEleResult.getFromNodeId(), completeAck);
         }
 
         /**
@@ -294,10 +312,13 @@ public class ControllerCandidate {
             electionResult = remoteEleResult;
             String controllerId = remoteEleResult.getControllerId();
             int epoch = remoteEleResult.getEpoch();
+
             ElectionResultAck completeAck = ElectionResultAck.newAccept(controllerId, epoch);
+            completeAck.buildBuffer();
+
             log.info("accepted remote election result: {}", JSON.toJSONString(remoteEleResult));
             // 发送 ACK 给 leader , 确保其他非leader节点都已收到
-            serverNetworkManager.sendRequest(remoteNodeId, completeAck.toMessage());
+            serverNetworkManager.sendRequest(remoteNodeId, completeAck);
         }
 
         private void finishedVoting() {
@@ -316,17 +337,22 @@ public class ControllerCandidate {
         // 定义 quorum 数量，如若controller候选节点有三个，则quorum = 3 / 2 + 1 = 2
         int quorum = remoteNodeManager.getQuorum();
 
-        log.info("receive vote from remote node: {}", JSON.toJSONString(vote));
+//        log.info("receive vote from remote node: {}", JSON.toJSONString(vote));
 
         if (vote.getFromNodeId() == null) {
             return null;
         }
 
-        // 判断是否存在相同节点的投票, 若存在则保留轮次较大的一次投票
+        // 判断是否有来自同一个节点的多次投票, 若存在则保留轮次较大的一次投票
         Optional<Vote> existVote = votes.stream().filter(a -> Objects.equals(a.getFromNodeId(), vote.getFromNodeId())).findFirst();
         if (existVote.isPresent()) {
-            log.info("the same controller node {} voting exist, select the large round: {}", vote.getFromNodeId(), JSON.toJSONString(vote));
-            existVote.get().setRound(vote.getRound());
+            Vote vote1 = existVote.get();
+
+            log.info("the same controller node {} voting exist, select the large round. old round {}," +
+                    " old target: {}, new round: {}, new target: {}", vote.getFromNodeId(), vote1.getRound(),
+                    vote1.getTargetNodeId(), vote.getRound(), vote.getTargetNodeId());
+            vote1.setRound(vote.getRound());
+            vote1.setTargetNodeId(vote1.getTargetNodeId());
         } else {
             // 对收到的选票进行归票
             votes.add(vote);

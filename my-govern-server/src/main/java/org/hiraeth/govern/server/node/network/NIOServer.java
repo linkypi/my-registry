@@ -34,11 +34,11 @@ public class NIOServer {
     private ClientConnectManager clientConnectManager;
     private ClientRequestHandler clientRequestHandler;
 
-    public NIOServer(RemoteNodeManager remoteNodeManager, SlotManager slotManager) {
+    public NIOServer(RemoteNodeManager remoteNodeManager, SlotManager slotManager, ServerNetworkManager serverNetworkManager) {
         try {
             this.selector = Selector.open();
             this.clientConnectManager = new ClientConnectManager();
-            this.clientRequestHandler = new ClientRequestHandler(remoteNodeManager, slotManager);
+            this.clientRequestHandler = new ClientRequestHandler(remoteNodeManager, slotManager, serverNetworkManager);
         } catch (IOException ex) {
             log.error("controller server selector open failed.", ex);
         }

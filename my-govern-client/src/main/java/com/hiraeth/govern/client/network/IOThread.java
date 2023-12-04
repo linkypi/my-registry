@@ -167,14 +167,14 @@ public class IOThread extends Thread {
     }
 
     private void handlerRequest(Request request) {
-        if (request.getRequestType() == RequestType.NotifySubscribe) {
+        if (request.getRequestType() == RequestType.NotifySubscribe.getValue()) {
             ServiceChangedRequest notifyRequest = ServiceChangedRequest.parseFrom(request);
             serviceInstance.onSubscribeService(notifyRequest);
         }
     }
 
     private void handlerResponse(Response response) {
-        if (response.getRequestType() == RequestType.FetchMetaData) {
+        if (response.getRequestType() == RequestType.FetchMetaData.getValue()) {
             FetchMetaDataResponse fetchMetaDataResponse = FetchMetaDataResponse.parseFrom(response);
             serviceInstance.initMetaData(fetchMetaDataResponse);
             return;

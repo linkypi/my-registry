@@ -23,7 +23,7 @@ public class ServiceChangedRequest extends Request{
     public ServiceChangedRequest(String serviceName, List<ServiceInstanceInfo> serviceInstanceInfoAddresses){
         super();
         this.serviceName = serviceName;
-        this.requestType = RequestType.NotifySubscribe;
+        this.requestType = RequestType.NotifySubscribe.getValue();
         this.serviceInstanceInfoAddresses = serviceInstanceInfoAddresses;
     }
 

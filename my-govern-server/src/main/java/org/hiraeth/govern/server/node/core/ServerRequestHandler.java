@@ -5,6 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.ServiceInstanceInfo;
 import org.hiraeth.govern.common.util.CommonUtil;
 import org.hiraeth.govern.server.entity.*;
+import org.hiraeth.govern.server.entity.request.HeartbeatForwardRequest;
+import org.hiraeth.govern.server.entity.request.RegisterForwardRequest;
+import org.hiraeth.govern.server.entity.request.RequestMessage;
+import org.hiraeth.govern.server.entity.response.ResponseMessage;
 import org.hiraeth.govern.server.node.network.ServerNetworkManager;
 import org.hiraeth.govern.server.slot.Slot;
 import org.hiraeth.govern.server.slot.SlotManager;
@@ -34,11 +38,11 @@ public class ServerRequestHandler extends Thread{
             log.info("start server request handler.");
             while (NodeStatusManager.isRunning()) {
 
-                int registerForwardCount = messageQueues.countLeadingMessage(ClusterMessageType.RegisterForward);
+                int registerForwardCount = messageQueues.countRequestMessage(ServerRequestType.RegisterForward);
                 if (registerForwardCount > 0) {
                     handleRegisterForward(messageQueues);
                 }
-                int heartbeatForwardCount = messageQueues.countLeadingMessage(ClusterMessageType.HeartbeatForward);
+                int heartbeatForwardCount = messageQueues.countRequestMessage(ServerRequestType.HeartbeatForward);
                 if (heartbeatForwardCount > 0) {
                     handleHeartbeatForward(messageQueues);
                 }
@@ -51,11 +55,12 @@ public class ServerRequestHandler extends Thread{
     }
 
     private void handleHeartbeatForward(ServerMessageQueue messageQueues) {
-        ClusterBaseMessage message = messageQueues.takeElectingMessage(ClusterMessageType.HeartbeatForward);
+        RequestMessage message = messageQueues.takeRequestMessage(ServerRequestType.HeartbeatForward);
         HeartbeatForwardRequest heartbeatForwardRequest = HeartbeatForwardRequest.parseFrom(message);
 
-        ClusterBaseMessage response = new ClusterBaseMessage();
-        response.setMessageId(heartbeatForwardRequest.getMessageId());
+        ResponseMessage responseMessage = new ResponseMessage();
+        responseMessage.setRequestType(message.getRequestType());
+        responseMessage.setRequestId(heartbeatForwardRequest.getRequestId());
 
         try {
             String serviceName = heartbeatForwardRequest.getServiceName();
@@ -69,7 +74,7 @@ public class ServerRequestHandler extends Thread{
 
             if (!slot.isReplica()) {
                 slot.heartbeat(serviceInstanceInfo);
-                response.setSuccess(true);
+                responseMessage.setSuccess(true);
                 log.info("heartbeat service instance success: {}", JSON.toJSONString(serviceInstanceInfo));
             } else {
                 // 消息已经转发，若到此仍未找到主分片则说明集群节点之间的槽位信息没有同步
@@ -81,15 +86,16 @@ public class ServerRequestHandler extends Thread{
             log.error("heartbeat service instance occur error: {}", JSON.toJSONString(heartbeatForwardRequest), ex);
         }
 
-        ClusterMessage clusterMessage = response.toMessage();
-        serverNetworkManager.sendRequest(message.getFromNodeId(), clusterMessage);
+        responseMessage.buildBuffer();
+        serverNetworkManager.sendRequest(message.getFromNodeId(), responseMessage);
     }
     private void handleRegisterForward(ServerMessageQueue messageQueues) {
-        ClusterBaseMessage message = messageQueues.takeElectingMessage(ClusterMessageType.RegisterForward);
+        RequestMessage message = messageQueues.takeRequestMessage(ServerRequestType.RegisterForward);
         RegisterForwardRequest registerForwardRequest = RegisterForwardRequest.parseFrom(message);
 
-        RegisterForwardResponse registerForwardResponse = new RegisterForwardResponse(true);
-        registerForwardResponse.setMessageId(registerForwardRequest.getMessageId());
+        ResponseMessage responseMessage = new ResponseMessage();
+        responseMessage.setRequestType(message.getRequestType());
+        responseMessage.setRequestId(registerForwardRequest.getRequestId());
 
         try {
             String serviceName = registerForwardRequest.getServiceName();
@@ -103,21 +109,19 @@ public class ServerRequestHandler extends Thread{
 
             if (!slot.isReplica()) {
                 slot.registerServiceInstance(serviceInstanceInfo);
+                responseMessage.setSuccess(true);
                 log.info("register service instance success: {}", JSON.toJSONString(serviceInstanceInfo));
             } else {
                 // 消息已经转发，若到此仍未找到主分片则说明集群节点之间的槽位信息没有同步
-                registerForwardResponse.setSuccess(false);
                 log.error("register service instance from forward node {} failed: {}, because the the primary slot not found.",
                         message.getFromNodeId(), JSON.toJSONString(serviceInstanceInfo));
             }
-
         } catch (Exception ex) {
             log.error("register service instance occur error: {}", JSON.toJSONString(registerForwardRequest), ex);
-            registerForwardResponse.setSuccess(false);
         }
 
-        ClusterMessage clusterMessage = registerForwardResponse.toMessage();
-        serverNetworkManager.sendRequest(message.getFromNodeId(), clusterMessage);
+        responseMessage.buildBuffer();
+        serverNetworkManager.sendRequest(message.getFromNodeId(), responseMessage);
     }
 
 }

@@ -30,7 +30,7 @@ public class FetchMetaDataResponse extends Response {
     public FetchMetaDataResponse() {
         super();
         timestamp = System.currentTimeMillis();
-        this.requestType = RequestType.FetchMetaData;
+        this.requestType = RequestType.FetchMetaData.getValue();
     }
 
     @Override

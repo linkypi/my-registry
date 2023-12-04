@@ -1,8 +1,11 @@
-package org.hiraeth.govern.server.entity;
+package org.hiraeth.govern.server.entity.request;
 
+import cn.hutool.core.bean.BeanUtil;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.server.entity.ServerRequestType;
+import org.hiraeth.govern.server.entity.ServerRole;
 import org.hiraeth.govern.server.node.core.ElectionStage;
 
 import java.nio.ByteBuffer;
@@ -15,23 +18,19 @@ import java.nio.ByteBuffer;
 @Slf4j
 @Getter
 @Setter
-public class ElectionResult extends ClusterBaseMessage{
+public class ElectionResult extends RequestMessage {
 
     // 角色, 无需远程传输
     private ServerRole serverRole;
 
     public ElectionResult() {
         super();
-        this.clusterMessageType = ClusterMessageType.ElectionComplete;
+        this.requestType = ServerRequestType.ElectionComplete.getValue();
     }
 
-    public ClusterMessage toMessage(){
-        ByteBuffer buffer = toBuffer();
-        return new ClusterMessage(clusterMessageType, buffer.array());
-    }
     public ElectionResult(String controllerId, int epoch) {
         super();
-        this.clusterMessageType = ClusterMessageType.ElectionComplete;
+        this.requestType = ServerRequestType.ElectionComplete.getValue();
         this.controllerId = controllerId;
         this.epoch = epoch;
     }
@@ -56,17 +55,15 @@ public class ElectionResult extends ClusterBaseMessage{
         this.stage = stage;
     }
 
-    public ByteBuffer toBuffer() {
-        return super.convertToBuffer(0);
+    public void buildBuffer(){
+        toBuffer();
     }
 
-    public static ElectionResult parseFrom(ClusterBaseMessage messageBase) {
-        ElectionResult electionResult = new ElectionResult();
-        electionResult.setStage(messageBase.stage);
-        electionResult.setEpoch(messageBase.epoch);
-        electionResult.setTimestamp(messageBase.timestamp);
-        electionResult.setControllerId(messageBase.controllerId);
-        electionResult.setFromNodeId(messageBase.fromNodeId);
-        return electionResult;
+    public ByteBuffer toBuffer() {
+        return super.toBuffer(0);
+    }
+
+    public static ElectionResult parseFrom(RequestMessage messageBase) {
+        return BeanUtil.copyProperties(messageBase, ElectionResult.class);
     }
 }

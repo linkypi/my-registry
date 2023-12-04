@@ -2,8 +2,11 @@ package org.hiraeth.govern.server.node.core;
 
 import cn.hutool.core.date.LocalDateTimeUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.server.entity.ClusterBaseMessage;
-import org.hiraeth.govern.server.entity.ClusterMessageType;
+import org.hiraeth.govern.common.domain.MessageType;
+import org.hiraeth.govern.server.entity.ServerMessage;
+import org.hiraeth.govern.server.entity.ServerRequestType;
+import org.hiraeth.govern.server.entity.request.RequestMessage;
+import org.hiraeth.govern.server.entity.response.ResponseMessage;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -19,7 +22,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 @Slf4j
 public class ServerMessageQueue {
 
-    private static final long WAIT_FRO_RESPONSE_TIMEOUT = 5 * 1000L;
+    private static final long WAIT_FRO_TIMEOUT = 5 * 1000L;
 
     private static class Singleton {
         static ServerMessageQueue instance = new ServerMessageQueue();
@@ -29,69 +32,63 @@ public class ServerMessageQueue {
         return ServerMessageQueue.Singleton.instance;
     }
 
-    // stage -> messageType -> messages
-    private static final Map<Integer,Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>>> QUEUES = new ConcurrentHashMap<>();
+    // messageType -> requestType -> messages
+    private static final Map<Integer, Map<Integer, LinkedBlockingQueue<ServerMessage>>> QUEUES = new ConcurrentHashMap<>();
 
     public void initQueue() {
-        for (ElectionStage.ELStage stage :ElectionStage.ELStage.values()) {
-            Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>> map = new ConcurrentHashMap<>();
-            for (ClusterMessageType clusterMessageType : ClusterMessageType.values()) {
-                map.put(clusterMessageType.getValue(), new LinkedBlockingQueue<>());
+        for (MessageType messageType : MessageType.values()) {
+            Map<Integer, LinkedBlockingQueue<ServerMessage>> map = new ConcurrentHashMap<>();
+            for (ServerRequestType requestType : ServerRequestType.values()) {
+                map.put(requestType.getValue(), new LinkedBlockingQueue<>());
             }
-            QUEUES.put(stage.getValue(), map);
+            QUEUES.put(messageType.getValue(), map);
         }
     }
 
-    public void addMessage(ClusterBaseMessage message) {
-        int messageType = message.getClusterMessageType().getValue();
-        QUEUES.get(message.getStage()).get(messageType).add(message);
+    public void addMessage(ServerMessage message) {
+        int messageType = message.getMessageType().getValue();
+        int requestType = message.getRequestType();
+
+        Map<Integer, LinkedBlockingQueue<ServerMessage>> map = QUEUES.get(messageType);
+        if(messageType == MessageType.REQUEST.getValue()){
+            RequestMessage requestMessage = RequestMessage.parseFrom(message);
+            map.get(requestType).add(requestMessage);
+        }else{
+            ResponseMessage responseMessage = ResponseMessage.parseFrom(message);
+            map.get(requestType).add(responseMessage);
+        }
     }
 
-    /**
-     * 获取选举阶段消息队列
-     * @return
-     */
-    public Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>> getElectingMessageQueue() {
-        return QUEUES.get(ElectionStage.ELStage.ELECTING.getValue());
+    public RequestMessage takeRequestMessage(ServerRequestType serverRequestType){
+        ServerMessage serverMessage = takeMessageInternal(MessageType.REQUEST, serverRequestType);
+        return (RequestMessage)serverMessage;
     }
 
-    /**
-     * 获取领导阶段消息队列
-     * @return
-     */
-    public Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>> getLeadingMessageQueue() {
-        return QUEUES.get(ElectionStage.ELStage.LEADING.getValue());
+    public ResponseMessage takeResponseMessage(ServerRequestType serverRequestType){
+        ServerMessage serverMessage = takeMessageInternal(MessageType.RESPONSE, serverRequestType);
+        return (ResponseMessage)serverMessage;
     }
 
-    public ClusterBaseMessage takeElectingMessage(ClusterMessageType clusterMessageType){
-        return takeMessage(ElectionStage.ELStage.ELECTING, clusterMessageType);
-    }
-
-    public ClusterBaseMessage takeLeadingMessage(ClusterMessageType clusterMessageType){
-        return takeMessage(ElectionStage.ELStage.LEADING, clusterMessageType);
-    }
-
-    public ClusterBaseMessage takeMessage(ElectionStage.ELStage stage, ClusterMessageType clusterMessageType){
+    public ServerMessage takeMessageInternal(MessageType messageType, ServerRequestType serverRequestType){
         try {
-            Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>> queueMap = QUEUES.get(stage);
-            return queueMap.get(clusterMessageType.getValue()).take();
+            return QUEUES.get(messageType.getValue()).get(serverRequestType.getValue()).take();
         }catch (Exception ex){
-            log.error("take message from receive queue failed, stage: {}, message type: {}", stage, clusterMessageType, ex);
+            log.error("take message from receive queue failed, message type: {}", serverRequestType, ex);
             return null;
         }
     }
 
-    public int countElectingMessage(ClusterMessageType clusterMessageType){
-        return countMessage(ElectionStage.ELStage.ELECTING, clusterMessageType);
+    public int countRequestMessage(ServerRequestType serverRequestType){
+        return countMessage(MessageType.REQUEST, serverRequestType);
     }
 
-    public int countLeadingMessage(ClusterMessageType clusterMessageType){
-        return countMessage(ElectionStage.ELStage.LEADING, clusterMessageType);
+    public int countResponseMessage(ServerRequestType serverRequestType){
+        return countMessage(MessageType.RESPONSE, serverRequestType);
     }
 
-    public int countMessage(ElectionStage.ELStage stage, ClusterMessageType clusterMessageType){
-        Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>> queueMap = QUEUES.get(stage.getValue());
-        BlockingQueue<ClusterBaseMessage> queue = queueMap.get(clusterMessageType.getValue());
+    public int countMessage(MessageType messageType, ServerRequestType serverRequestType){
+        Map<Integer, LinkedBlockingQueue<ServerMessage>> queueMap = QUEUES.get(messageType.getValue());
+        BlockingQueue<ServerMessage> queue = queueMap.get(serverRequestType.getValue());
         if(queue == null){
             return 0;
         }
@@ -100,25 +97,17 @@ public class ServerMessageQueue {
 
     /**
      * 超市等待消息返回
-     * @param clusterMessageType
+     * @param serverRequestType
      * @return
      */
-    public ClusterBaseMessage waitForLeadingMessage(ClusterMessageType clusterMessageType) {
-        return waitForMessage(ElectionStage.ELStage.LEADING, clusterMessageType);
-    }
-
-    public ClusterBaseMessage waitForElectingMessage(ClusterMessageType clusterMessageType) {
-        return waitForMessage(ElectionStage.ELStage.ELECTING, clusterMessageType);
-    }
-
-    public ClusterBaseMessage waitForMessage(ElectionStage.ELStage stage, ClusterMessageType clusterMessageType) {
+    public ServerMessage waitForMessage(MessageType messageType, ServerRequestType serverRequestType) {
         try {
             boolean timeout = false;
             LocalDateTime startTime = LocalDateTimeUtil.now();
-            while (countMessage(stage, clusterMessageType) == 0) {
+            while (countMessage(messageType, serverRequestType) == 0) {
                 Thread.sleep(100);
                 LocalDateTime now = LocalDateTimeUtil.now();
-                if (!LocalDateTimeUtil.between(startTime, now).minusMillis(WAIT_FRO_RESPONSE_TIMEOUT).isNegative()) {
+                if (!LocalDateTimeUtil.between(startTime, now).minusMillis(WAIT_FRO_TIMEOUT).isNegative()) {
                     timeout = true;
                     break;
                 }
@@ -126,12 +115,18 @@ public class ServerMessageQueue {
             if (timeout) {
                 return null;
             }
-            Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>> queueMap = QUEUES.get(stage.getValue());
-            return queueMap.get(clusterMessageType.getValue()).take();
+            return QUEUES.get(messageType.getValue()).get(serverRequestType.getValue()).take();
         } catch (Exception ex) {
-            log.error("wait response timeout from receive queue failed, stage: {}, meesage type: {}.", stage, clusterMessageType, ex);
+            log.error("wait response timeout from receive queue failed, message type: {}.", serverRequestType, ex);
             return null;
         }
     }
 
+    public ResponseMessage waitForResponseMessage(ServerRequestType serverRequestType) {
+        return (ResponseMessage)waitForMessage(MessageType.RESPONSE, serverRequestType);
+    }
+
+    public ServerMessage waitForRequestMessage(ServerRequestType serverRequestType) {
+        return waitForMessage(MessageType.REQUEST, serverRequestType);
+    }
 }

@@ -3,15 +3,13 @@ package org.hiraeth.govern.server.node.core;
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.NodeSlotInfo;
-import org.hiraeth.govern.common.domain.SlotRange;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.*;
+import org.hiraeth.govern.server.entity.request.*;
 import org.hiraeth.govern.server.node.network.NIOServer;
 import org.hiraeth.govern.server.node.network.ServerNetworkManager;
 import org.hiraeth.govern.server.slot.SlotManager;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -38,14 +36,18 @@ public class ServerInstance {
     private NIOServer NIOServer;
 
 
-    public ServerInstance(){
+    public ServerInstance() {
         this.remoteNodeManager = new RemoteNodeManager();
         this.serverNetworkManager = new ServerNetworkManager(remoteNodeManager);
 
         this.slotManager = new SlotManager();
+
+        ServerMessageQueue messageQueues = ServerMessageQueue.getInstance();
+        messageQueues.initQueue();
+
         new ServerRequestHandler(slotManager, serverNetworkManager).start();
 
-        this.NIOServer = new NIOServer(remoteNodeManager, slotManager);
+        this.NIOServer = new NIOServer(remoteNodeManager, slotManager, serverNetworkManager);
 //        new DetectBlockingQueueThread().start();
     }
 
@@ -59,8 +61,8 @@ public class ServerInstance {
                 try {
                     Thread.sleep(10000);
                     log.info("                              ");
-                    for(ClusterMessageType type: ClusterMessageType.values()) {
-                        int countResponseMessage = messageQueue.countElectingMessage(type);
+                    for(ServerRequestType type: ServerRequestType.values()) {
+                        int countResponseMessage = messageQueue.countRequestMessage(type);
                         log.info("-->  {} queue size {}", type.name(), countResponseMessage);
                     }
                 }catch (Exception ex){
@@ -120,17 +122,21 @@ public class ServerInstance {
         log.info("server has started now !!!");
     }
 
+    /**
+     * 等待 Leader 分配槽位
+     */
     private void waitForControllerSlotResult() {
         try {
             log.info("wait for controller allocate slots ...");
             ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
             while (NodeStatusManager.isRunning()) {
-                if (messageQueue.countElectingMessage(ClusterMessageType.AllocateSlots) > 0) {
+                if (messageQueue.countRequestMessage(ServerRequestType.AllocateSlots) > 0) {
                     acceptSlotAndReplyAck();
                     continue;
                 }
-                if (messageQueue.countElectingMessage(ClusterMessageType.AllocateSlotsConfirm) > 0) {
-                    ClusterBaseMessage message = messageQueue.takeElectingMessage(ClusterMessageType.AllocateSlotsConfirm);
+                // 接收 Leader 的槽位信息的最终确认，Leader 只有收到大多数槽位分配ACK之后方才回复 Confirm
+                if (messageQueue.countRequestMessage(ServerRequestType.AllocateSlotsConfirm) > 0) {
+                    RequestMessage message = messageQueue.takeRequestMessage(ServerRequestType.AllocateSlotsConfirm);
                     SlotAllocateResultConfirm confirm = SlotAllocateResultConfirm.parseFrom(message);
                     if (confirm.getSlots() == null || confirm.getSlots().size() == 0) {
                         log.error("allocated slots confirm is null: {}", JSON.toJSONString(confirm));
@@ -139,11 +145,11 @@ public class ServerInstance {
                     }
 
                     // 初始化自身负责的槽位
-                    String nodeId = Configuration.getInstance().getNodeId();
-                    SlotRange slotRange = confirm.getSlots().get(nodeId);
-                    slotManager.initSlotsAndReplicas(slotRange, confirm.getSlotReplicas());
+                    NodeSlotInfo nodeSlotInfo = slotManager.buildCurrentNodeSlotInfo(confirm.getSlots(), confirm.getSlotReplicas());
+                    slotManager.persist(nodeSlotInfo);
 
-                    persistSlots(confirm);
+                    NodeStatusManager nodeStatusManager = NodeStatusManager.getInstance();
+                    nodeStatusManager.setNodeSlotInfo(nodeSlotInfo);
                     break;
                 }
             }
@@ -153,9 +159,13 @@ public class ServerInstance {
         }
     }
 
+    /**
+     * 接收Leader槽位分配并回复ACK
+     * @return
+     */
     private boolean acceptSlotAndReplyAck() {
         ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
-        ClusterBaseMessage message = messageQueue.takeElectingMessage(ClusterMessageType.AllocateSlots);
+        RequestMessage message = messageQueue.takeRequestMessage(ServerRequestType.AllocateSlots);
         SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(message);
         if (slotAllocateResult.getSlots() == null || slotAllocateResult.getSlots().size() == 0) {
             log.error("allocated slots from controller is null: {}", JSON.toJSONString(slotAllocateResult));
@@ -165,22 +175,10 @@ public class ServerInstance {
 
         // 回复ACK
         SlotAllocateResultAck resultAck = new SlotAllocateResultAck();
-        serverNetworkManager.sendRequest(slotAllocateResult.getFromNodeId(), resultAck.toMessage());
+        resultAck.buildBuffer();
+
+        serverNetworkManager.sendRequest(slotAllocateResult.getFromNodeId(), resultAck);
         log.debug("replyed ack slot allocation");
         return true;
-    }
-
-    private void persistSlots(SlotAllocateResult slotAllocateResult) {
-        Map<String, SlotRange> slots = slotAllocateResult.getSlots();
-        Map<String, Map<String,List<SlotRange>>> slotReplicas = slotAllocateResult.getSlotReplicas();
-        String nodeId = Configuration.getInstance().getNodeId();
-
-        NodeSlotInfo nodeSlotInfo = slotManager.buildCurrentNodeSlotInfo(slots, slotReplicas);
-        slotManager.persistNodeSlotsInfo(nodeSlotInfo);
-        slotManager.persistNodeSlots(slots.get(nodeId));
-
-        NodeStatusManager.getInstance().setNodeSlotInfo(nodeSlotInfo);
-
-        log.debug("persist slots success: {}", JSON.toJSONString(slots));
     }
 }

@@ -20,7 +20,7 @@ public class SubscribeRequest extends Request {
     public SubscribeRequest(String serviceName){
         super();
         this.serviceName = serviceName;
-        this.requestType = RequestType.Subscribe;
+        this.requestType = RequestType.Subscribe.getValue();
     }
 
     public void buildBuffer() {

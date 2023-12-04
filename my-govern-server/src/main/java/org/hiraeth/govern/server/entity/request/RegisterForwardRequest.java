@@ -1,8 +1,9 @@
-package org.hiraeth.govern.server.entity;
+package org.hiraeth.govern.server.entity.request;
 
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.util.CommonUtil;
+import org.hiraeth.govern.server.entity.ServerRequestType;
 
 import java.nio.ByteBuffer;
 
@@ -13,7 +14,7 @@ import java.nio.ByteBuffer;
  */
 @Getter
 @Setter
-public class RegisterForwardRequest extends ClusterBaseMessage{
+public class RegisterForwardRequest extends RequestMessage {
 
     private String serviceName;
     /**
@@ -25,25 +26,27 @@ public class RegisterForwardRequest extends ClusterBaseMessage{
      */
     private int servicePort;
 
-    public RegisterForwardRequest(){}
+    public RegisterForwardRequest(){
+        super();
+        this.setRequestType(ServerRequestType.RegisterForward.getValue());
+    }
 
     public RegisterForwardRequest(String serviceName, String instanceIp, int servicePort) {
         super();
         this.instanceIp = instanceIp;
         this.servicePort = servicePort;
         this.serviceName = serviceName;
-        this.setClusterMessageType(ClusterMessageType.RegisterForward);
+        this.setRequestType(ServerRequestType.RegisterForward.getValue());
     }
 
-    public ClusterMessage toMessage(){
-        ByteBuffer buffer = toBuffer();
-        return new ClusterMessage(clusterMessageType, buffer.array());
+    public void buildBuffer(){
+        toBuffer();
     }
 
     public ByteBuffer toBuffer() {
         int length = CommonUtil.getJsonStringLength(serviceName) +
         CommonUtil.getJsonStringLength(instanceIp);
-        return super.convertToBuffer(12 + length);
+        return super.toBuffer(12 + length);
     }
 
     @Override
@@ -52,7 +55,7 @@ public class RegisterForwardRequest extends ClusterBaseMessage{
         CommonUtil.writeStr(buffer, serviceName);
         CommonUtil.writeStr(buffer, instanceIp);
     }
-    public static RegisterForwardRequest parseFrom(ClusterBaseMessage messageBase) {
+    public static RegisterForwardRequest parseFrom(RequestMessage messageBase) {
         ByteBuffer buffer = messageBase.getBuffer();
         int port = buffer.getInt();
         String name = CommonUtil.readStr(buffer);

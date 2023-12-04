@@ -1,5 +1,6 @@
 package org.hiraeth.govern.common.domain;
 
+import com.alibaba.fastjson.annotation.JSONField;
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.domain.request.Request;
@@ -18,10 +19,11 @@ import static org.hiraeth.govern.common.constant.Constant.REQUEST_HEADER_LENGTH;
 @Setter
 public class Message {
     protected MessageType messageType;
-    protected RequestType requestType;
+    protected int requestType;
     protected long requestId;
     protected long timestamp;
 
+    @JSONField(serialize = false)
     protected ByteBuffer buffer;
 
     public Message(){
@@ -37,7 +39,7 @@ public class Message {
 
         buffer.putInt(length);
         buffer.putInt(messageType.getValue());
-        buffer.putInt(requestType.getValue());
+        buffer.putInt(requestType);
         buffer.putLong(requestId);
         buffer.putLong(System.currentTimeMillis());
 

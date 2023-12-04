@@ -10,6 +10,9 @@ import org.hiraeth.govern.common.domain.response.Response;
 import org.hiraeth.govern.common.domain.response.SubscribeResponse;
 import org.hiraeth.govern.common.util.CommonUtil;
 import org.hiraeth.govern.server.entity.*;
+import org.hiraeth.govern.server.entity.request.HeartbeatForwardRequest;
+import org.hiraeth.govern.server.entity.request.RegisterForwardRequest;
+import org.hiraeth.govern.server.entity.response.ResponseMessage;
 import org.hiraeth.govern.server.node.network.ServerNetworkManager;
 import org.hiraeth.govern.server.slot.Slot;
 import org.hiraeth.govern.server.node.network.ClientConnection;
@@ -31,6 +34,7 @@ public class ClientRequestHandler {
     private SlotManager slotManager;
 
     private ServerNetworkManager serverNetworkManager;
+
 
     public ClientRequestHandler(RemoteNodeManager remoteNodeManager, SlotManager slotManager,  ServerNetworkManager serverNetworkManager) {
         this.remoteNodeManager = remoteNodeManager;
@@ -66,17 +70,17 @@ public class ClientRequestHandler {
     }
 
     public Message handleRequest(ClientConnection connection, Request request) {
-        if (request.getRequestType() == RequestType.FetchMetaData) {
+        if (request.getRequestType() == RequestType.FetchMetaData.getValue()) {
             FetchMetaDataRequest fetchMetaDataRequest = BeanUtil.copyProperties(request, FetchMetaDataRequest.class);
             return createMetaData(fetchMetaDataRequest);
         }
-        if (request.getRequestType() == RequestType.RegisterService) {
+        if (request.getRequestType() == RequestType.RegisterService.getValue()) {
             return handleRegister(request);
         }
-        if (request.getRequestType() == RequestType.Heartbeat) {
+        if (request.getRequestType() == RequestType.Heartbeat.getValue()) {
             return handleHeartbeat(request);
         }
-        if (request.getRequestType() == RequestType.Subscribe) {
+        if (request.getRequestType() == RequestType.Subscribe.getValue()) {
             return handleSubscribe(request, connection.getConnectionId());
         }
 
@@ -168,12 +172,13 @@ public class ClientRequestHandler {
         String serviceInstanceIp = heartbeatRequest.getServiceInstanceIp();
         int serviceInstancePort = heartbeatRequest.getServiceInstancePort();
         HeartbeatForwardRequest request = new HeartbeatForwardRequest(serviceName, serviceInstanceIp, serviceInstancePort);
+        request.buildBuffer();
 
         log.info("forward register service to {} {}...", nodeId, serviceName);
-        serverNetworkManager.sendRequest(nodeId, request.toMessage());
+        serverNetworkManager.sendRequest(nodeId, request);
 
         ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
-        ClusterBaseMessage response = messageQueue.waitForLeadingMessage(ClusterMessageType.HeartbeatForward);
+        ResponseMessage response = messageQueue.waitForResponseMessage(ServerRequestType.HeartbeatForward);
 
         boolean success = response.isSuccess();
         if(success){
@@ -195,20 +200,20 @@ public class ClientRequestHandler {
         forwardMessage.setInstanceIp(registerServiceRequest.getInstanceIp());
         forwardMessage.setServicePort(registerServiceRequest.getServicePort());
         forwardMessage.setServiceName(registerServiceRequest.getServiceName());
+        forwardMessage.buildBuffer();
+
         log.info("forward register service to {} {}...", nodeId, JSON.toJSONString(registerServiceRequest));
-        serverNetworkManager.sendRequest(nodeId, forwardMessage.toMessage());
+        serverNetworkManager.sendRequest(nodeId, forwardMessage);
 
         ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
-        ClusterBaseMessage response = messageQueue.waitForLeadingMessage(ClusterMessageType.RegisterForward);
-        RegisterForwardResponse registerForwardResponse = RegisterForwardResponse.parseFrom(response);
-        boolean success = registerForwardResponse.isSuccess();
-        if(success){
-            log.info("forward register service to {} success: {}", nodeId, JSON.toJSONString(registerForwardResponse));
-        }else{
-            log.error("forward register service to {} success, but response failed: {}", nodeId, JSON.toJSONString(registerForwardResponse));
-        }
+        ResponseMessage response = messageQueue.waitForResponseMessage(ServerRequestType.RegisterForward);
 
-        return success;
+        if (response != null && response.isSuccess()) {
+            log.info("forward register service to {} success: {}", nodeId, JSON.toJSONString(response));
+            return true;
+        }
+        log.error("forward register service to {} success, but response failed: {}", nodeId, JSON.toJSONString(response));
+        return false;
     }
 
 

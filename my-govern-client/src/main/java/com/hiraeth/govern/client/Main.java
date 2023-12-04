@@ -22,7 +22,9 @@ public class Main {
 
         ServiceInstance serviceInstance = new ServiceInstance();
         serviceInstance.init();
-        Thread.sleep(3000);
-        serviceInstance.subscribe("DEFAULT");
+        Thread.sleep(30000000);
+//        serviceInstance.subscribe("DEFAULT");
     }
+
+
 }

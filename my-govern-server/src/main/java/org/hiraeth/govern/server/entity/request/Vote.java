@@ -1,10 +1,11 @@
-package org.hiraeth.govern.server.entity;
+package org.hiraeth.govern.server.entity.request;
 
 import cn.hutool.core.bean.BeanUtil;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.util.CommonUtil;
+import org.hiraeth.govern.server.entity.ServerRequestType;
 
 import java.nio.ByteBuffer;
 
@@ -15,12 +16,11 @@ import java.nio.ByteBuffer;
  */
 @Getter
 @Setter
-@AllArgsConstructor
-public class Vote extends ClusterBaseMessage{
+public class Vote extends RequestMessage {
     /**
      * 投票轮次
      */
-    private Integer round;
+    private int round;
 
     /**
      * 投票给哪个controller节点
@@ -30,13 +30,13 @@ public class Vote extends ClusterBaseMessage{
     public Vote(int round, String targetNodeId){
         super();
         this.round = round;
-        this.fromNodeId = targetNodeId;
-        this.clusterMessageType = ClusterMessageType.Vote;
+        this.targetNodeId = targetNodeId;
+        this.requestType = ServerRequestType.Vote.getValue();
     }
 
-    public ClusterMessage toMessage(){
-        ByteBuffer buffer = toBuffer();
-        return new ClusterMessage(clusterMessageType, buffer.array());
+    public void buildBuffer() {
+        int strLength = CommonUtil.getStrLength(targetNodeId);
+        super.buildBuffer(strLength + 8);
     }
 
     protected void writePayload(ByteBuffer buffer){
@@ -46,10 +46,10 @@ public class Vote extends ClusterBaseMessage{
 
     public ByteBuffer toBuffer() {
         int strLength = CommonUtil.getStrLength(targetNodeId);
-        return convertToBuffer(8 + strLength);
+        return toBuffer(8 + strLength);
     }
 
-    public static Vote parseFrom(ClusterBaseMessage messageBase) {
+    public static Vote parseFrom(RequestMessage messageBase) {
         Vote vote = BeanUtil.copyProperties(messageBase, Vote.class);
         ByteBuffer buffer = messageBase.getBuffer();
         vote.round = buffer.getInt();

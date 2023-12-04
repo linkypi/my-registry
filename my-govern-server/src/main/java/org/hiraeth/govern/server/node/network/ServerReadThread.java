@@ -1,16 +1,15 @@
 package org.hiraeth.govern.server.node.network;
 
 import lombok.extern.slf4j.Slf4j;
+import org.hiraeth.govern.server.entity.ServerRequestType;
 import org.hiraeth.govern.server.node.core.NodeStatusManager;
-import org.hiraeth.govern.server.entity.ClusterBaseMessage;
+import org.hiraeth.govern.server.entity.ServerMessage;
 import org.hiraeth.govern.server.node.core.ServerMessageQueue;
 
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @author: lynch
@@ -48,10 +47,13 @@ public class ServerReadThread extends Thread{
                 inputStream.readFully(bytes, 0, length);
 
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                ClusterBaseMessage messageBase = ClusterBaseMessage.parseFromBuffer(buffer);
+                ServerMessage message = ServerMessage.parseFromBuffer(buffer);
 
                 ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
-                messageQueue.addMessage(messageBase);
+                messageQueue.addMessage(message);
+                ServerRequestType requestType = ServerRequestType.of(message.getRequestType());
+                log.info("receive message from {}, msg type {}, request type: {}, request id: {}",
+                       message.getFromNodeId(), message.getMessageType(), requestType, message.getRequestId());
             } catch (IOException ex) {
                 log.error("read message from remote node failed.", ex);
                 NodeStatusManager.setFatal();
