@@ -13,9 +13,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 public class ClientMessageQueue {
     private static class Singleton {
-
         static ClientMessageQueue instance = new ClientMessageQueue();
-
     }
 
     public static ClientMessageQueue getInstance() {

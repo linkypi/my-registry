@@ -51,6 +51,7 @@ public class Configuration {
     private int heartbeatCheckInterval;
     private int numberOfReplicas;
     private int numberOfShards;
+    private int minSyncReplicas;
 
     private ServerAddress serverAddress;
 
@@ -64,40 +65,19 @@ public class Configuration {
         return Singleton.instance;
     }
 
-    /**
-     * for example:
-     * 192.168.10.100:2156,192.168.10.110:2156
-     */
-    private static Pattern CLUSTER_REGEX_COMPILE = Pattern.compile("(\\d+\\.\\d+\\.\\d+\\.\\d+):(\\d+)");
-    private static Pattern IP_REGEX_COMPILE = Pattern.compile("\\d+\\.\\d+\\.\\d+\\.\\d+");
-
     public void parse() throws Exception {
         try {
             Properties configProperties = loadConfigFile();
 
             // 解析 controller.candidate
-            String isControllerCandidateStr = configProperties.getProperty(IS_CONTROLLER_CANDIDATE);
-            validateIsControllerCandidate(isControllerCandidateStr);
-            this.isControllerCandidate = Boolean.parseBoolean(isControllerCandidateStr);
-            log.debug("parameter {} = {}", IS_CONTROLLER_CANDIDATE, isControllerCandidateStr);
+            this.isControllerCandidate = CommonUtil.parseBoolean(configProperties, IS_CONTROLLER_CANDIDATE, false);
 
             parseControllerServers(configProperties);
 
-            String dir = configProperties.getProperty(DATA_DIR);
-            if (StringUtil.isEmpty(dir)) {
-                throw new IllegalArgumentException(DATA_DIR + " cannot empty.");
-            }
-            this.dataDir = dir;
-            log.debug("parameter {} = {}", DATA_DIR, dir);
+            this.dataDir = CommonUtil.getString(configProperties, DATA_DIR);
+            this.logDir = CommonUtil.getString(configProperties, LOG_DIR);
 
-            String logDir = configProperties.getProperty(LOG_DIR);
-            if (StringUtil.isEmpty(logDir)) {
-                throw new IllegalArgumentException(LOG_DIR + " cannot empty.");
-            }
-            this.logDir = logDir;
-            log.debug("parameter {} = {}", LOG_DIR, logDir);
-
-            this.nodeIP = parseNodeIP(configProperties);
+            this.nodeIP = CommonUtil.parseIP(configProperties, NODE_IP);
 
             this.nodeInternalPort = CommonUtil.parseInt(configProperties, NODE_INTERNAL_PORT);
             this.nodeClientHttpPort = CommonUtil.parseInt(configProperties, NODE_CLIENT_HTTP_PORT);
@@ -107,6 +87,7 @@ public class Configuration {
             this.heartbeatCheckInterval = CommonUtil.parseInt(configProperties, HEARTBEAT_CHECK_INTERVAL, DEFAULT_HEARTBEAT_CHECK_INTERVAL);
             this.numberOfReplicas = CommonUtil.parseInt(configProperties, NUMBER_OF_REPLICAS, DEFAULT_NUMBER_OF_REPLICAS);
             this.numberOfShards = CommonUtil.parseInt(configProperties, NUMBER_OF_SHARDS, DEFAULT_NUMBER_OF_SHARDS);
+            this.minSyncReplicas = CommonUtil.parseInt(configProperties, MIN_SYNC_REPLICAS);
 
             serverAddress = new ServerAddress(nodeIP, nodeInternalPort, nodeClientHttpPort, nodeClientTcpPort);
 
@@ -126,29 +107,6 @@ public class Configuration {
         } catch (IOException ex) {
             throw new ConfigurationException("parsing config file occur error. ", ex);
         }
-    }
-
-    private static String parseNodeIP(Properties configProperties) {
-        String nodeIp = configProperties.getProperty(NODE_IP);
-        if (StringUtil.isEmpty(nodeIp)) {
-            throw new IllegalArgumentException(NODE_IP + " cannot empty.");
-        }
-        Matcher matcher = IP_REGEX_COMPILE.matcher(nodeIp);
-        if (!matcher.matches()) {
-            throw new IllegalArgumentException(Constant.NODE_IP + " parameters " + nodeIp + " is invalid.");
-        }
-        return nodeIp;
-    }
-
-    private boolean validateIsControllerCandidate(String isControllerCandidate) {
-        if(StringUtil.isEmpty(isControllerCandidate)){
-            return true;
-        }
-
-        if("true".equals(isControllerCandidate) || "false".equals(isControllerCandidate)){
-            return true;
-        }
-        throw new IllegalArgumentException("controller.candidate must be true or false, not "+ isControllerCandidate);
     }
 
     private Properties loadConfigFile() throws ConfigurationException, IOException {
@@ -173,21 +131,8 @@ public class Configuration {
     }
 
     private void parseControllerServers(Properties configProperties) {
-        String nodeServers = configProperties.getProperty(Constant.CONTROLLER_CANDIDATE_SERVERS);
-        if (StringUtil.isEmpty(nodeServers)) {
-            throw new IllegalArgumentException(Constant.CONTROLLER_CANDIDATE_SERVERS + " cannot be empty.");
-        }
-        String[] arr = nodeServers.split(",");
-        if (arr.length == 0) {
-            throw new IllegalArgumentException(Constant.CONTROLLER_CANDIDATE_SERVERS + " cannot be empty.");
-        }
-        for (String item : arr) {
-            Matcher matcher = CLUSTER_REGEX_COMPILE.matcher(item);
-            if (!matcher.matches()) {
-                throw new IllegalArgumentException(Constant.CONTROLLER_CANDIDATE_SERVERS + " parameters " + item + " is invalid.");
-            }
-        }
-        for (String item : arr) {
+        List<String> list = CommonUtil.parseIpPortList(configProperties, CONTROLLER_CANDIDATE_SERVERS);
+        for (String item : list) {
             ServerAddress serverAddress = new ServerAddress(item);
             controllerServers.put(serverAddress.getNodeId(), serverAddress);
         }

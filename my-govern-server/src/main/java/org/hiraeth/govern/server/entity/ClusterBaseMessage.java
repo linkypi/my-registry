@@ -2,6 +2,7 @@ package org.hiraeth.govern.server.entity;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.snowflake.SnowFlakeIdUtil;
 import org.hiraeth.govern.common.util.CommonUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.node.core.NodeStatusManager;
@@ -23,6 +24,7 @@ public class ClusterBaseMessage {
     protected int epoch;
     protected long timestamp;
     protected String fromNodeId;
+    protected long messageId;
 
     //       // 选举阶段
     //        ELECTING 1,
@@ -32,6 +34,10 @@ public class ClusterBaseMessage {
     //        LEADING 3
     protected int stage;
 
+    // 响应时使用， 标识请求是否已处理完成
+    private boolean success;
+    private String errorMessage;
+
     private ByteBuffer buffer;
 
     public ClusterBaseMessage(ClusterMessageType clusterMessageType, String controllerId, int epoch){
@@ -39,6 +45,7 @@ public class ClusterBaseMessage {
         this.clusterMessageType = clusterMessageType;
         this.timestamp = System.currentTimeMillis();
         this.fromNodeId = Configuration.getInstance().getNodeId();
+        this.messageId = SnowFlakeIdUtil.getNextId();
         this.controllerId = controllerId;
         this.epoch = epoch;
         this.stage = ElectionStage.ELStage.LEADING.getValue();
@@ -56,6 +63,7 @@ public class ClusterBaseMessage {
         this.controllerId = statusManager.getControllerId();
         this.epoch = statusManager.getEpoch();
         this.stage = statusManager.getStage().getValue();
+        this.messageId = SnowFlakeIdUtil.getNextId();
     }
 
     protected void writePayload(ByteBuffer buffer){
@@ -67,9 +75,19 @@ public class ClusterBaseMessage {
         buffer.putInt(clusterMessageType.getValue());
         writeStr(controllerId);
         buffer.putInt(epoch);
-        buffer.putLong(System.currentTimeMillis());
+        buffer.putLong(timestamp);
         writeStr(fromNodeId);
+
+        // messageId
+        buffer.putLong(messageId);
+        // stage
         buffer.putInt(ElectionStage.getStatus().getValue());
+
+        // success
+        buffer.putInt(success?1:0);
+        // error message
+        writeStr(errorMessage);
+
         writePayload(buffer);
         return buffer;
     }
@@ -84,16 +102,23 @@ public class ClusterBaseMessage {
     }
 
     public static ClusterBaseMessage parseFromBuffer(ByteBuffer buffer) {
-        int requestType = buffer.getInt();
-        ClusterMessageType msgType = ClusterMessageType.of(requestType);
+        int messageType = buffer.getInt();
+        ClusterMessageType msgType = ClusterMessageType.of(messageType);
 
         ClusterBaseMessage messageBase = new ClusterBaseMessage();
         messageBase.setClusterMessageType(msgType);
         messageBase.controllerId = CommonUtil.readStr(buffer);
         messageBase.epoch = buffer.getInt();
+
         messageBase.timestamp = buffer.getLong();
         messageBase.fromNodeId = CommonUtil.readStr(buffer);
+
+        messageBase.messageId = buffer.getLong();
         messageBase.stage = buffer.getInt();
+
+        messageBase.success = buffer.getInt() == 1;
+        messageBase.errorMessage = CommonUtil.readStr(buffer);
+
         messageBase.buffer = buffer;
         return messageBase;
     }

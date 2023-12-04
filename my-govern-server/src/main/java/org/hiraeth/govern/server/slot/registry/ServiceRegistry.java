@@ -18,17 +18,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 @Slf4j
 public class ServiceRegistry {
-    private ServiceRegistry(){
-        new HeartbeatThread().start();
-    }
-
-    static class Singleton{
-        private static final ServiceRegistry instance = new ServiceRegistry();
-    }
-
-    public static ServiceRegistry getInstance(){
-        return Singleton.instance;
-    }
 
     public Map<String, ServiceInstanceInfo> getServiceInstances(){
         return serviceInstancesMap;
@@ -64,13 +53,26 @@ public class ServiceRegistry {
 
         // 注册表有变更则通知客户端
         if (changed) {
-            List<ServiceChangeListener> listeners = serviceChangeListeners.get(instance.getServiceName());
-            if (CollectionUtil.notEmpty(listeners)) {
-                log.info("service instance changed: {}, notify client.", instance.getServiceName());
-                for (ServiceChangeListener listener : listeners) {
-                    listener.onChange(instance.getServiceName(), serviceInstanceInfos);
-                }
+            notifyOnChangerListeners(instance);
+        }
+    }
+
+    private void notifyOnChangerListeners(ServiceInstanceInfo instance) {
+        List<ServiceInstanceInfo> serviceInstanceInfos = serviceRegistry.get(instance.getServiceName());
+        List<ServiceChangeListener> listeners = serviceChangeListeners.get(instance.getServiceName());
+        if (CollectionUtil.notEmpty(listeners)) {
+            log.info("service instance changed: {}, notify client.", instance.getServiceName());
+            for (ServiceChangeListener listener : listeners) {
+                listener.onChange(instance.getServiceName(), serviceInstanceInfos);
             }
+        }
+    }
+
+    public void remove(ServiceInstanceInfo instance) {
+        List<ServiceInstanceInfo> instances = serviceRegistry.get(instance.getServiceName());
+        if (instances != null) {
+            instances.remove(instance);
+            notifyOnChangerListeners(instance);
         }
     }
 

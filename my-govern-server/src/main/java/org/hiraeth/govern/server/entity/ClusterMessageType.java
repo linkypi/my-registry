@@ -31,6 +31,8 @@ public enum ClusterMessageType {
     AllocateSlotsAck(7),
     // 向所有leader通知: 大多数 follower 已确认当前槽位分配
     AllocateSlotsConfirm(8),
+    RegisterForward(9),
+    HeartbeatForward(10),
     ;
     ClusterMessageType(int value){
         this.value = value;

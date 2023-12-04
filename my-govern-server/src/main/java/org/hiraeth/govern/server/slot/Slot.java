@@ -2,6 +2,7 @@ package org.hiraeth.govern.server.slot;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.common.domain.ServiceInstanceInfo;
 import org.hiraeth.govern.server.slot.registry.ServiceRegistry;
 
@@ -16,14 +17,19 @@ import java.util.List;
 @Setter
 public class Slot {
     private int index;
+    // 是否是副本槽位
+    private boolean isReplica;
+    private String nodeId;
     private ServiceRegistry serviceRegistry;
 
     public Slot(){
     }
 
-    public Slot(int index){
+    public Slot(int index, boolean isReplica, String nodeId){
         this.index = index;
-        this.serviceRegistry = ServiceRegistry.getInstance();
+        this.isReplica = isReplica;
+        this.nodeId = nodeId;
+        this.serviceRegistry = new ServiceRegistry();
     }
 
     public void registerServiceInstance(ServiceInstanceInfo serviceInstanceInfo){

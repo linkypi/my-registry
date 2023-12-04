@@ -83,7 +83,7 @@ public class ControllerCandidate {
      */
     public void notifyOtherCandidates(String controllerId) {
         List<RemoteServer> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
-        ElectionResult electionResult = ElectionResult.newCandidateResult(controllerId, voteRound);
+        ElectionResult electionResult = ElectionResult.newElectingResult(controllerId, voteRound);
         for (RemoteServer remoteServer : otherControllerCandidates) {
             serverNetworkManager.sendRequest(remoteServer.getNodeId(), electionResult.toMessage());
         }
@@ -133,18 +133,18 @@ public class ControllerCandidate {
     private ElectionResult startElection() {
 
         startNewVoteRound(null);
-
+        ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
         // 为防止无限循环 通过 ElectionStage 控制
         // 因为很有可能当前节点因为网络问题没有收到投票, 导致在此循环等待
         while (NodeStatusManager.isRunning() && ElectionStage.getStatus() == ElectionStage.ELStage.ELECTING) {
             try {
                 Thread.sleep(300);
-                if (serverNetworkManager.countResponseMessage(ClusterMessageType.Vote) > 0) {
-                    ClusterBaseMessage messageBase = serverNetworkManager.takeResponseMessage(ClusterMessageType.Vote);
+                if (messageQueue.countElectingMessage(ClusterMessageType.Vote) > 0) {
+                    ClusterBaseMessage messageBase = messageQueue.takeElectingMessage(ClusterMessageType.Vote);
                     Vote vote = Vote.parseFrom(messageBase);
                     String leaderId = handleVoteResponse(vote);
                     if (leaderId != null) {
-                        electionResult = ElectionResult.newCandidateResult(leaderId, voteRound);
+                        electionResult = ElectionResult.newElectingResult(leaderId, voteRound);
                         break;
                     }
                 }
@@ -163,18 +163,19 @@ public class ControllerCandidate {
         @Override
         public void run() {
             try {
+                ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
                 while (NodeStatusManager.isRunning()) {
-                    if (serverNetworkManager.countResponseMessage(ClusterMessageType.ElectionComplete) > 0) {
+                    if (messageQueue.countElectingMessage(ClusterMessageType.ElectionComplete) > 0) {
                         handleElectionResult();
                     }
 
-                    if (serverNetworkManager.countResponseMessage(ClusterMessageType.ElectionCompleteAck) > 0) {
+                    if (messageQueue.countElectingMessage(ClusterMessageType.ElectionCompleteAck) > 0) {
                         if(ackElectionResult()){
                             break;
                         }
                     }
 
-                    if (serverNetworkManager.countResponseMessage(ClusterMessageType.Leading) > 0) {
+                    if (messageQueue.countElectingMessage(ClusterMessageType.Leading) > 0) {
                         if(handleLeadingResult()){
                             break;
                         }
@@ -188,7 +189,8 @@ public class ControllerCandidate {
         }
 
         private boolean handleLeadingResult() {
-            ClusterBaseMessage messageBase = serverNetworkManager.takeResponseMessage(ClusterMessageType.Leading);
+            ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
+            ClusterBaseMessage messageBase = messageQueue.takeElectingMessage(ClusterMessageType.Leading);
             log.info("receive Leading message !!! {}", JSON.toJSONString(messageBase));
             if (electionResult != null && electionResult.getControllerId() != messageBase.getControllerId()) {
                 log.error("receive Leading message, but the controller id is not the same, current election result: {}, " +
@@ -199,7 +201,8 @@ public class ControllerCandidate {
         }
 
         private boolean handleElectionResult() {
-            ClusterBaseMessage messageBase = serverNetworkManager.takeResponseMessage(ClusterMessageType.ElectionComplete);
+            ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
+            ClusterBaseMessage messageBase = messageQueue.takeElectingMessage(ClusterMessageType.ElectionComplete);
             ElectionResult remoteEleResult = ElectionResult.parseFrom(messageBase);
             log.info("election result notification: {}. ", JSON.toJSONString(remoteEleResult));
 
@@ -230,7 +233,8 @@ public class ControllerCandidate {
         }
 
         private boolean ackElectionResult() {
-            ClusterBaseMessage messageBase = serverNetworkManager.takeResponseMessage(ClusterMessageType.ElectionCompleteAck);
+            ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
+            ClusterBaseMessage messageBase = messageQueue.takeElectingMessage(ClusterMessageType.ElectionCompleteAck);
             ElectionResultAck remoteResultAck = ElectionResultAck.parseFrom(messageBase);
             if (ElectionResultAck.AckResult.Accepted.getValue() == remoteResultAck.getResult()) {
                 confirmList.add(remoteResultAck.getFromNodeId());
@@ -243,7 +247,7 @@ public class ControllerCandidate {
                 // 发送确认, 以便 confirmList 汇总结果
                 String controllerId = remoteResultAck.getControllerId();
                 int epoch = remoteResultAck.getEpoch();
-                replyAcceptResult(remoteResultAck.getFromNodeId(), ElectionResult.newCandidateResult(controllerId, epoch));
+                replyAcceptResult(remoteResultAck.getFromNodeId(), ElectionResult.newElectingResult(controllerId, epoch));
             }
             // 大多数节点已确认选举结果, 进入领导阶段
             String nodeId = Configuration.getInstance().getNodeId();

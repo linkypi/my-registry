@@ -4,10 +4,13 @@ import com.alibaba.fastjson.JSON;
 import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.domain.NodeSlotInfo;
+import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.common.util.FileUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.RemoteServer;
 import org.hiraeth.govern.common.domain.SlotRange;
+import org.hiraeth.govern.server.node.core.NodeStatusManager;
+import org.hiraeth.govern.server.slot.registry.SlotHeartbeatThread;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,7 +26,11 @@ import static org.hiraeth.govern.common.constant.Constant.SLOTS_COUNT;
 @Getter
 public class SlotManager {
 
+    // 槽位实际数据，包括了副本槽位
     private static final Map<Integer, Slot> slots = new ConcurrentHashMap();
+
+    // 存储槽位副本所在机器地址
+    private static final Map<SlotRange, ServerAddress> slotReplicaAddresses = new ConcurrentHashMap();
 
     /**
      * 槽位数量， 参考Redis Cluster Hash Slots实现
@@ -32,14 +39,78 @@ public class SlotManager {
     private static final String SLOTS_REPLICA_FILE_NAME = ".slots_replicas";
     private static final String SLOT_FILE_NAME = ".slot";
 
-    public Slot getSlot(int num){
-        return slots.get(num);
+
+    public SlotManager(){
+        new SlotHeartbeatThread(this).start();
     }
 
-    public void initSlots(SlotRange rang){
-        for (int num = rang.getStart(); num < rang.getEnd(); num++) {
-            slots.put(num, new Slot(num));
+    public Slot getSlot(int slotNum){
+        return slots.get(slotNum);
+    }
+
+    public List<Slot> getSlots(){
+        return new ArrayList<>(slots.values());
+    }
+
+    public void initSlotsAndReplicas(SlotRange slotRange, Map<String,Map<String, List<SlotRange>>> slotReplicasMap){
+
+        // init
+        Configuration configuration = Configuration.getInstance();
+        String curNodeId = configuration.getNodeId();
+        for (int num = slotRange.getStart(); num < slotRange.getEnd(); num++) {
+            slots.put(num, new Slot(num, false, curNodeId));
         }
+
+        // 初始化槽位副本所在机器地址 以及槽位副本
+        Map<String, List<SlotRange>> replicas = slotReplicasMap.get(curNodeId);
+        for (String nodeId: replicas.keySet()){
+            List<SlotRange> ranges = replicas.get(nodeId);
+            ServerAddress serverAddr = configuration.getControllerServers().get(nodeId);
+            for (SlotRange range: ranges){
+                slotReplicaAddresses.put(range, serverAddr);
+
+                for (int num = range.getStart(); num < range.getEnd(); num++) {
+                    slots.put(num, new Slot(num, true, nodeId));
+                }
+            }
+        }
+    }
+
+    public ServerAddress locateServerAddress(int slot) {
+        for (SlotRange range : slotReplicaAddresses.keySet()) {
+            if (slot >= range.getStart() && slot <= range.getEnd()) {
+                return slotReplicaAddresses.get(range);
+            }
+        }
+        return null;
+    }
+
+    public NodeSlotInfo allocateSlots(List<RemoteServer> otherControllerCandidates, List<RemoteServer> allRemoteServers){
+        // 分配slots
+        Map<String, SlotRange> slots = executeSlotsAllocation(otherControllerCandidates);
+
+        // 分配slots副本
+        Map<String,Map<String, List<SlotRange>>> slotReplicas = executeSlotReplicasAllocation(slots, allRemoteServers);
+
+        NodeSlotInfo nodeSlotInfo = buildCurrentNodeSlotInfo(slots, slotReplicas);
+        // 持久化槽位分配结果
+        boolean success = persistNodeSlotsInfo(nodeSlotInfo);
+        if (!success) {
+            NodeStatusManager.setFatal();
+            return null;
+        }
+
+        // 初始化槽位及其副本
+        initSlotsAndReplicas(nodeSlotInfo.getSlotRange(), nodeSlotInfo.getSlotReplicas());
+
+        // 持久化自身负责的槽位
+        success = persistNodeSlots(nodeSlotInfo.getSlotRange());
+        if (!success) {
+            NodeStatusManager.setFatal();
+            return null;
+        }
+
+        return nodeSlotInfo;
     }
 
     public Map<String, SlotRange> executeSlotsAllocation(List<RemoteServer> otherRemoteServerNodes) {
@@ -89,7 +160,7 @@ public class SlotManager {
         Random random = new Random();
 
         // 存放的是每份副本所在机器列表信息， 由于副本信息对应的是节点信息故使用节点id作为key
-        Map<String, Map<String, List<SlotRange>>> slotsReplicas = new ConcurrentHashMap<>();
+        Map<String, Map<String, List<SlotRange>>> slotsReplicasMap = new ConcurrentHashMap<>();
 
         for (String nodeId : slots.keySet()) {
             SlotRange slotRange = slots.get(nodeId);
@@ -104,6 +175,8 @@ public class SlotManager {
                 int index = random.nextInt(allNodeIds.size());
                 replicaNodeId = allNodeIds.get(index);
                 Map<String, List<SlotRange>> stringListMap = tempReplicas.get(nodeId);
+
+                // 副本不能放在同一个节点，已分配副本的机器不在再分配
                 if (!nodeId.equals(replicaNodeId) && !stringListMap.containsKey(replicaNodeId)) {
                     Map<String, List<SlotRange>> slotRanges = tempReplicas.get(nodeId);
                     if (slotRanges == null) {
@@ -121,10 +194,10 @@ public class SlotManager {
                 }
             }
             Map<String, List<SlotRange>> stringListMap = tempReplicas.get(nodeId);
-            slotsReplicas.put(nodeId, stringListMap);
+            slotsReplicasMap.put(nodeId, stringListMap);
         }
 
-        return slotsReplicas;
+        return slotsReplicasMap;
     }
 
     public NodeSlotInfo buildCurrentNodeSlotInfo(Map<String, SlotRange> slots, Map<String,Map<String, List<SlotRange>>> slotReplicas){

@@ -1,17 +1,17 @@
 package org.hiraeth.govern.server.node.network;
 
+import cn.hutool.core.date.LocalDateTimeUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.common.util.CollectionUtil;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.core.NodeStatusManager;
-import org.hiraeth.govern.server.node.core.RemoteNodeManager;
-import org.hiraeth.govern.server.node.core.ServerConnectionListener;
+import org.hiraeth.govern.server.node.core.*;
 import org.hiraeth.govern.server.entity.*;
 
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +37,7 @@ public class ServerNetworkManager extends NetworkManager {
     // 检查跟其他所有节点的连接状态的时间间隔
     private static final long CHECK_ALL_OTHER_NODES_CONNECT_INTERVAL = 5 * 1000L;
     private static final int DEFAULT_RETRIES = 5;
+
     /**
      * 等待重试发起连接的controller节点集合
      */
@@ -135,23 +136,6 @@ public class ServerNetworkManager extends NetworkManager {
         return true;
     }
 
-    public ClusterBaseMessage takeResponseMessage(ClusterMessageType clusterMessageType){
-        try {
-            return receiveQueues.get(clusterMessageType.getValue()).take();
-        }catch (Exception ex){
-            log.error("take message from receive queue failed.", ex);
-            return null;
-        }
-    }
-
-    public int countResponseMessage(ClusterMessageType clusterMessageType){
-        BlockingQueue<ClusterBaseMessage> queue = receiveQueues.get(clusterMessageType.getValue());
-        if(queue == null){
-            return 0;
-        }
-        return queue.size();
-    }
-
     public void addRemoteNodeSocket(String remoteNodeId, Socket socket) {
         log.info("add remote node socket, remote node id: {}, address: {}", remoteNodeId, socket.getRemoteSocketAddress());
         this.remoteServerSockets.put(remoteNodeId, socket);
@@ -223,12 +207,9 @@ public class ServerNetworkManager extends NetworkManager {
         // 初始化发送请求队列
         sendQueues.put(remoteNodeId, sendQueue);
 
-        for (ClusterMessageType clusterMessageType : ClusterMessageType.values()){
-            receiveQueues.put(clusterMessageType.getValue(), new LinkedBlockingQueue<>());
-        }
-
+        ServerMessageQueue.getInstance().initQueue();
         new ServerWriteThread(socket, sendQueue).start();
-        new ServerReadThread(socket, receiveQueues).start();
+        new ServerReadThread(socket).start();
     }
 
     class RetryConnectServerThread extends Thread {

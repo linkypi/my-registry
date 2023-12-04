@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.NodeSlotInfo;
 import org.hiraeth.govern.common.domain.SlotRange;
-import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.*;
 import org.hiraeth.govern.server.node.network.ServerNetworkManager;
 import org.hiraeth.govern.server.slot.SlotManager;
@@ -23,44 +22,25 @@ public class Controller {
     private ServerNetworkManager serverNetworkManager;
     private SlotManager slotManager;
 
-    public Controller(RemoteNodeManager remoteNodeManager, ServerNetworkManager serverNetworkManager) {
+    public Controller(RemoteNodeManager remoteNodeManager, ServerNetworkManager serverNetworkManager, SlotManager slotManager) {
         this.remoteNodeManager = remoteNodeManager;
         this.serverNetworkManager = serverNetworkManager;
-        this.slotManager = new SlotManager();
+        this.slotManager = slotManager;
     }
 
     public NodeSlotInfo allocateSlots() {
 
         log.debug("start allocate slots...");
         List<RemoteServer> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
-        Map<String, SlotRange> slots = slotManager.executeSlotsAllocation(otherControllerCandidates);
+        List<RemoteServer> allRemoteServers = remoteNodeManager.getAllRemoteServers();
 
-        // 分配slots副本
-        Map<String,Map<String, List<SlotRange>>> slotReplicas = slotManager.executeSlotReplicasAllocation(slots, remoteNodeManager.getAllRemoteServers());
+        NodeSlotInfo nodeSlotInfo = slotManager.allocateSlots(otherControllerCandidates, allRemoteServers);
+        syncSlots(nodeSlotInfo.getSlots(), nodeSlotInfo.getSlotReplicas());
 
-        NodeSlotInfo nodeSlotInfo = slotManager.buildCurrentNodeSlotInfo(slots, slotReplicas);
+        log.debug("persist slots success, notified other candidates, waiting for ack: {}", JSON.toJSONString(nodeSlotInfo));
 
-        // 持久化槽位分配结果
-        boolean success = slotManager.persistNodeSlotsInfo(nodeSlotInfo);
-        if (!success) {
-            NodeStatusManager.setFatal();
-            return null;
-        }
-
-        syncSlots(slots, slotReplicas);
-
-        // 初始化自身负责的槽位
-        slotManager.initSlots(nodeSlotInfo.getSlotRange());
-
-        // 持久化自身负责的槽位
-        success = slotManager.persistNodeSlots(nodeSlotInfo.getSlotRange());
-        if (!success) {
-            NodeStatusManager.setFatal();
-            return null;
-        }
-
-        log.debug("persist slots success, notified other candidates, waiting for ack: {}", JSON.toJSONString(slots));
         waitForSlotResultAck(nodeSlotInfo);
+
         return nodeSlotInfo;
     }
 
@@ -71,14 +51,15 @@ public class Controller {
 
     private void waitForSlotResultAck(NodeSlotInfo nodeSlotInfo) {
         try {
+            ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
             Set<String> confirmSet = new HashSet<>();
             while (NodeStatusManager.isRunning()) {
-                if (serverNetworkManager.countResponseMessage(ClusterMessageType.AllocateSlotsAck) == 0) {
+                if (messageQueue.countElectingMessage(ClusterMessageType.AllocateSlotsAck) == 0) {
                     Thread.sleep(500);
                     continue;
                 }
 
-                ClusterBaseMessage message = serverNetworkManager.takeResponseMessage(ClusterMessageType.AllocateSlotsAck);
+                ClusterBaseMessage message = messageQueue.takeElectingMessage(ClusterMessageType.AllocateSlotsAck);
                 SlotAllocateResultAck ackResult = SlotAllocateResultAck.parseFrom(message);
                 confirmSet.add(ackResult.getFromNodeId());
                 log.info("receive AllocateSlotsAck, confirm size {}", confirmSet.size());

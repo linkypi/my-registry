@@ -41,24 +41,26 @@ public class ServerInstance {
     public ServerInstance(){
         this.remoteNodeManager = new RemoteNodeManager();
         this.serverNetworkManager = new ServerNetworkManager(remoteNodeManager);
+
         this.slotManager = new SlotManager();
+        new ServerRequestHandler(slotManager, serverNetworkManager).start();
+
         this.NIOServer = new NIOServer(remoteNodeManager, slotManager);
-//        new DetectBlockingQueueThread(NetworkManager).start();
+//        new DetectBlockingQueueThread().start();
     }
 
     class DetectBlockingQueueThread extends Thread{
-        private ServerNetworkManager serverNetworkManager;
-        public DetectBlockingQueueThread(ServerNetworkManager serverNetworkManager){
-            this.serverNetworkManager = serverNetworkManager;
+        public DetectBlockingQueueThread(){
         }
         @Override
         public void run() {
+            ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
             while (true){
                 try {
                     Thread.sleep(10000);
                     log.info("                              ");
                     for(ClusterMessageType type: ClusterMessageType.values()) {
-                        int countResponseMessage = serverNetworkManager.countResponseMessage(type);
+                        int countResponseMessage = messageQueue.countElectingMessage(type);
                         log.info("-->  {} queue size {}", type.name(), countResponseMessage);
                     }
                 }catch (Exception ex){
@@ -104,7 +106,7 @@ public class ServerInstance {
             nodeStatusManager.updateStatus(electionResult, ElectionStage.ELStage.LEADING);
 
             if(serverRole == ServerRole.Controller){
-                Controller controller = new Controller(remoteNodeManager, serverNetworkManager);
+                Controller controller = new Controller(remoteNodeManager, serverNetworkManager, slotManager);
                 NodeSlotInfo nodeSlotInfo = controller.allocateSlots();
                 nodeStatusManager.setNodeSlotInfo(nodeSlotInfo);
             }else{
@@ -121,13 +123,14 @@ public class ServerInstance {
     private void waitForControllerSlotResult() {
         try {
             log.info("wait for controller allocate slots ...");
+            ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
             while (NodeStatusManager.isRunning()) {
-                if (serverNetworkManager.countResponseMessage(ClusterMessageType.AllocateSlots) > 0) {
+                if (messageQueue.countElectingMessage(ClusterMessageType.AllocateSlots) > 0) {
                     acceptSlotAndReplyAck();
                     continue;
                 }
-                if (serverNetworkManager.countResponseMessage(ClusterMessageType.AllocateSlotsConfirm) > 0) {
-                    ClusterBaseMessage message = serverNetworkManager.takeResponseMessage(ClusterMessageType.AllocateSlotsConfirm);
+                if (messageQueue.countElectingMessage(ClusterMessageType.AllocateSlotsConfirm) > 0) {
+                    ClusterBaseMessage message = messageQueue.takeElectingMessage(ClusterMessageType.AllocateSlotsConfirm);
                     SlotAllocateResultConfirm confirm = SlotAllocateResultConfirm.parseFrom(message);
                     if (confirm.getSlots() == null || confirm.getSlots().size() == 0) {
                         log.error("allocated slots confirm is null: {}", JSON.toJSONString(confirm));
@@ -138,7 +141,7 @@ public class ServerInstance {
                     // 初始化自身负责的槽位
                     String nodeId = Configuration.getInstance().getNodeId();
                     SlotRange slotRange = confirm.getSlots().get(nodeId);
-                    slotManager.initSlots(slotRange);
+                    slotManager.initSlotsAndReplicas(slotRange, confirm.getSlotReplicas());
 
                     persistSlots(confirm);
                     break;
@@ -151,7 +154,8 @@ public class ServerInstance {
     }
 
     private boolean acceptSlotAndReplyAck() {
-        ClusterBaseMessage message = serverNetworkManager.takeResponseMessage(ClusterMessageType.AllocateSlots);
+        ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
+        ClusterBaseMessage message = messageQueue.takeElectingMessage(ClusterMessageType.AllocateSlots);
         SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(message);
         if (slotAllocateResult.getSlots() == null || slotAllocateResult.getSlots().size() == 0) {
             log.error("allocated slots from controller is null: {}", JSON.toJSONString(slotAllocateResult));

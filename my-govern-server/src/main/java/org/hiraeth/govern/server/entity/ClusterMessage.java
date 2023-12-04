@@ -11,8 +11,14 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-@AllArgsConstructor
 public class ClusterMessage {
     private ClusterMessageType clusterMessageType;
     private byte[] buffer;
+
+    public ClusterMessage(){}
+
+    public ClusterMessage(ClusterMessageType clusterMessageType, byte[] buffer) {
+        this.clusterMessageType = clusterMessageType;
+        this.buffer = buffer;
+    }
 }

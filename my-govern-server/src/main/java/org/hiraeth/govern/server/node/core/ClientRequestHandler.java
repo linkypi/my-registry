@@ -9,6 +9,8 @@ import org.hiraeth.govern.common.domain.response.FetchMetaDataResponse;
 import org.hiraeth.govern.common.domain.response.Response;
 import org.hiraeth.govern.common.domain.response.SubscribeResponse;
 import org.hiraeth.govern.common.util.CommonUtil;
+import org.hiraeth.govern.server.entity.*;
+import org.hiraeth.govern.server.node.network.ServerNetworkManager;
 import org.hiraeth.govern.server.slot.Slot;
 import org.hiraeth.govern.server.node.network.ClientConnection;
 import org.hiraeth.govern.server.slot.SlotManager;
@@ -28,9 +30,12 @@ public class ClientRequestHandler {
     private RemoteNodeManager remoteNodeManager;
     private SlotManager slotManager;
 
-    public ClientRequestHandler(RemoteNodeManager remoteNodeManager, SlotManager slotManager) {
+    private ServerNetworkManager serverNetworkManager;
+
+    public ClientRequestHandler(RemoteNodeManager remoteNodeManager, SlotManager slotManager,  ServerNetworkManager serverNetworkManager) {
         this.remoteNodeManager = remoteNodeManager;
         this.slotManager = slotManager;
+        this.serverNetworkManager = serverNetworkManager;
     }
 
     /**
@@ -66,7 +71,7 @@ public class ClientRequestHandler {
             return createMetaData(fetchMetaDataRequest);
         }
         if (request.getRequestType() == RequestType.RegisterService) {
-            return saveServiceInstance(request);
+            return handleRegister(request);
         }
         if (request.getRequestType() == RequestType.Heartbeat) {
             return handleHeartbeat(request);
@@ -74,6 +79,7 @@ public class ClientRequestHandler {
         if (request.getRequestType() == RequestType.Subscribe) {
             return handleSubscribe(request, connection.getConnectionId());
         }
+
         return null;
     }
 
@@ -103,7 +109,6 @@ public class ClientRequestHandler {
         HeartbeatRequest heartbeatRequest = HeartbeatRequest.parseFrom(request);
 
         try {
-
             String serviceName = heartbeatRequest.getServiceName();
             int servicePort = heartbeatRequest.getServiceInstancePort();
             String instanceIp = heartbeatRequest.getServiceInstanceIp();
@@ -112,7 +117,12 @@ public class ClientRequestHandler {
 
             int slotNum = CommonUtil.routeSlot(serviceName);
             Slot slot = slotManager.getSlot(slotNum);
-            slot.heartbeat(serviceInstanceInfo);
+            if(!slot.isReplica()) {
+                slot.heartbeat(serviceInstanceInfo);
+            }else{
+                boolean success = forwardHeartbeatToPrimarySlotSync(slot.getNodeId(), heartbeatRequest);
+                response.setSuccess(success);
+            }
             log.info("heartbeat service instance success: {}", JSON.toJSONString(serviceInstanceInfo));
         }catch (Exception ex){
             log.error("heartbeat service instance occur error: {}", JSON.toJSONString(heartbeatRequest), ex);
@@ -123,7 +133,7 @@ public class ClientRequestHandler {
         return response;
     }
 
-    private Response saveServiceInstance(Request request) {
+    private Response handleRegister(Request request){
         Response response = new Response(RequestType.RegisterService, true);
         RegisterServiceRequest registerServiceRequest = RegisterServiceRequest.parseFrom(request);
         try {
@@ -135,7 +145,14 @@ public class ClientRequestHandler {
 
             int slotNum = CommonUtil.routeSlot(serviceName);
             Slot slot = slotManager.getSlot(slotNum);
-            slot.registerServiceInstance(serviceInstanceInfo);
+
+            if(!slot.isReplica()) {
+                slot.registerServiceInstance(serviceInstanceInfo);
+            }else {
+                // 若槽位所在机器不是当前机器则需转发到主分片所在机器
+                boolean success = forwardRegisterToPrimarySlotSync(slot.getNodeId(), registerServiceRequest);
+                response.setSuccess(success);
+            }
             log.info("register service instance success: {}", JSON.toJSONString(serviceInstanceInfo));
         }catch (Exception ex){
             log.error("register service instance occur error: {}", JSON.toJSONString(registerServiceRequest), ex);
@@ -145,6 +162,55 @@ public class ClientRequestHandler {
         response.buildBuffer();
         return response;
     }
+
+    private boolean forwardHeartbeatToPrimarySlotSync(String nodeId, HeartbeatRequest heartbeatRequest){
+        String serviceName = heartbeatRequest.getServiceName();
+        String serviceInstanceIp = heartbeatRequest.getServiceInstanceIp();
+        int serviceInstancePort = heartbeatRequest.getServiceInstancePort();
+        HeartbeatForwardRequest request = new HeartbeatForwardRequest(serviceName, serviceInstanceIp, serviceInstancePort);
+
+        log.info("forward register service to {} {}...", nodeId, serviceName);
+        serverNetworkManager.sendRequest(nodeId, request.toMessage());
+
+        ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
+        ClusterBaseMessage response = messageQueue.waitForLeadingMessage(ClusterMessageType.HeartbeatForward);
+
+        boolean success = response.isSuccess();
+        if(success){
+            log.info("forward heartbeat to {} and response success.",  nodeId);
+        }else{
+            log.error("forward heartbeat to {} success, but response failed: {}", nodeId, JSON.toJSONString(request));
+        }
+
+        return success;
+    }
+
+    /**
+     * 同步转发请求
+     *
+     * @param registerServiceRequest
+     */
+    private boolean forwardRegisterToPrimarySlotSync(String nodeId, RegisterServiceRequest registerServiceRequest) {
+        RegisterForwardRequest forwardMessage = new RegisterForwardRequest();
+        forwardMessage.setInstanceIp(registerServiceRequest.getInstanceIp());
+        forwardMessage.setServicePort(registerServiceRequest.getServicePort());
+        forwardMessage.setServiceName(registerServiceRequest.getServiceName());
+        log.info("forward register service to {} {}...", nodeId, JSON.toJSONString(registerServiceRequest));
+        serverNetworkManager.sendRequest(nodeId, forwardMessage.toMessage());
+
+        ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
+        ClusterBaseMessage response = messageQueue.waitForLeadingMessage(ClusterMessageType.RegisterForward);
+        RegisterForwardResponse registerForwardResponse = RegisterForwardResponse.parseFrom(response);
+        boolean success = registerForwardResponse.isSuccess();
+        if(success){
+            log.info("forward register service to {} success: {}", nodeId, JSON.toJSONString(registerForwardResponse));
+        }else{
+            log.error("forward register service to {} success, but response failed: {}", nodeId, JSON.toJSONString(registerForwardResponse));
+        }
+
+        return success;
+    }
+
 
     private FetchMetaDataResponse createMetaData(FetchMetaDataRequest request){
         NodeStatusManager nodeStatusManager = NodeStatusManager.getInstance();

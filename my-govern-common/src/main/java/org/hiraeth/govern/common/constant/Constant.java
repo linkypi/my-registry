@@ -29,6 +29,7 @@ public class Constant {
     public static final String NUMBER_OF_SHARDS = "number.of.shards";
     public static final int DEFAULT_NUMBER_OF_SHARDS = 1;
     public static final String NUMBER_OF_REPLICAS = "number.of.replicas";
+    public static final String MIN_SYNC_REPLICAS = "min.sync.replicas";
     public static final int DEFAULT_NUMBER_OF_REPLICAS = 1;
     public static final String SERVICE_INSTANCE_IP = "service.instance.ip";
     public static final String SERVICE_INSTANCE_PORT = "service.instance.port";

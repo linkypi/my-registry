@@ -13,8 +13,6 @@ public class ElectionStage {
     public enum ELStage {
         // 选举阶段
         ELECTING(1),
-        // 候选阶段, 已有初步投票结果, 需进一步确认
-        CANDIDATE(2),
         // 领导阶段, 即已选举产生 leader
         LEADING(3);
 

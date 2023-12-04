@@ -3,6 +3,7 @@ package org.hiraeth.govern.server.node.network;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.server.node.core.NodeStatusManager;
 import org.hiraeth.govern.server.entity.ClusterBaseMessage;
+import org.hiraeth.govern.server.node.core.ServerMessageQueue;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -23,11 +24,9 @@ public class ServerReadThread extends Thread{
      */
     private Socket socket;
     private DataInputStream inputStream;
-    private Map<Integer,LinkedBlockingQueue<ClusterBaseMessage>> receiveQueue;
 
-    public ServerReadThread(Socket socket, Map<Integer, LinkedBlockingQueue<ClusterBaseMessage>> receiveQueue){
+    public ServerReadThread(Socket socket){
         this.socket = socket;
-        this.receiveQueue = receiveQueue;
         try {
             this.inputStream = new DataInputStream(socket.getInputStream());
             socket.setSoTimeout(0);
@@ -35,6 +34,7 @@ public class ServerReadThread extends Thread{
             log.error("get input stream from socket failed.", ex);
         }
     }
+
     @Override
     public void run() {
 
@@ -49,13 +49,9 @@ public class ServerReadThread extends Thread{
 
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
                 ClusterBaseMessage messageBase = ClusterBaseMessage.parseFromBuffer(buffer);
-                int msgType = messageBase.getClusterMessageType().getValue();
 
-                receiveQueue.get(msgType).add(messageBase);
-
-//                MessageType msgTypeEnum = messageBase.getMessageType();
-//                log.info("get message from remote node: {}, message type: {}, message size: {} bytes",
-//                        socket.getRemoteSocketAddress(), msgTypeEnum.name(), buffer.capacity());
+                ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
+                messageQueue.addMessage(messageBase);
             } catch (IOException ex) {
                 log.error("read message from remote node failed.", ex);
                 NodeStatusManager.setFatal();

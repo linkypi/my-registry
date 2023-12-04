@@ -42,12 +42,6 @@ public class ElectionResult extends ClusterBaseMessage{
         return electionResult;
     }
 
-    public static ElectionResult newCandidateResult(String controllerId, int epoch){
-        ElectionResult electionResult = new ElectionResult(controllerId, epoch);
-        electionResult.setStage(ElectionStage.ELStage.CANDIDATE.getValue());
-        return electionResult;
-    }
-
     public static ElectionResult newLeadingResult(String controllerId, int epoch){
         ElectionResult electionResult = new ElectionResult(controllerId, epoch);
         electionResult.setStage(ElectionStage.ELStage.LEADING.getValue());
