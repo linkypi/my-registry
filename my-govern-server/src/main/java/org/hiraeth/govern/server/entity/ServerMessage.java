@@ -7,7 +7,7 @@ import org.hiraeth.govern.common.domain.MessageType;
 import org.hiraeth.govern.common.snowflake.SnowFlakeIdUtil;
 import org.hiraeth.govern.common.util.CommonUtil;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.core.NodeStatusManager;
+import org.hiraeth.govern.server.node.core.NodeInfoManager;
 import org.hiraeth.govern.server.node.core.ElectionStage;
 
 import java.nio.ByteBuffer;
@@ -32,6 +32,9 @@ public class ServerMessage extends Message {
     //  领导阶段, 即已选举产生 leader
     //  LEADING 3
     protected int stage;
+
+    // 仅用作停止写线程标识，不做远程传输
+    private boolean terminated;
 
     public ServerMessage(ServerRequestType requestType, String controllerId, int epoch) {
 
@@ -58,8 +61,12 @@ public class ServerMessage extends Message {
         return serverMessage;
     }
 
+    public ServerMessage(boolean terminated) {
+        this.terminated = terminated;
+    }
+
     public ServerMessage() {
-        NodeStatusManager statusManager = NodeStatusManager.getInstance();
+        NodeInfoManager statusManager = NodeInfoManager.getInstance();
         this.timestamp = System.currentTimeMillis();
         this.fromNodeId = Configuration.getInstance().getNodeId();
         this.controllerId = statusManager.getControllerId();

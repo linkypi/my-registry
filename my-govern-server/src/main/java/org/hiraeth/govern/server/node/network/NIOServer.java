@@ -5,11 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.*;
 import org.hiraeth.govern.common.domain.request.Request;
 import org.hiraeth.govern.common.domain.response.Response;
+import org.hiraeth.govern.common.domain.response.ResponseStatusCode;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.core.ClientMessageQueue;
-import org.hiraeth.govern.server.node.core.ClientRequestHandler;
-import org.hiraeth.govern.server.node.core.RemoteNodeManager;
-import org.hiraeth.govern.server.slot.SlotManager;
+import org.hiraeth.govern.server.node.core.*;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -31,14 +29,10 @@ public class NIOServer {
 
     private Selector selector;
     private ServerSocketChannel serverSocketChannel;
-    private ClientConnectManager clientConnectManager;
-    private ClientRequestHandler clientRequestHandler;
 
-    public NIOServer(RemoteNodeManager remoteNodeManager, SlotManager slotManager, ServerNetworkManager serverNetworkManager) {
+    public NIOServer() {
         try {
             this.selector = Selector.open();
-            this.clientConnectManager = new ClientConnectManager();
-            this.clientRequestHandler = new ClientRequestHandler(remoteNodeManager, slotManager, serverNetworkManager);
         } catch (IOException ex) {
             log.error("controller server selector open failed.", ex);
         }
@@ -97,7 +91,7 @@ public class NIOServer {
                         } else if ((selectionKey.readyOps() & SelectionKey.OP_READ) != 0) {
                             handleRead(connection);
                         } else if ((selectionKey.readyOps() & SelectionKey.OP_WRITE) != 0) {
-                            clientRequestHandler.replyResponse(connection);
+                            ClientRequestHandler.getInstance().replyResponse(connection);
 //                            // 处理客户端请求
 //                            replyClient(connection);
 //
@@ -113,6 +107,7 @@ public class NIOServer {
                         } catch (IOException e) {
                             log.error("close client socket channel occur error, connection id: {}", connection.getConnectionId());
                         }
+                        ClientConnectManager clientConnectManager = ClientConnectManager.getInstance();
                         clientConnectManager.remove(connection.getConnectionId());
                         log.error("client disconnected, connection id: {}", connection.getConnectionId());
                     } else {
@@ -145,8 +140,9 @@ public class NIOServer {
 
         private void handleRequest(Request request, ClientConnection connection) throws IOException {
 
-            Message message = clientRequestHandler.handleRequest(connection, request);
             ClientMessageQueue messageQueue = ClientMessageQueue.getInstance();
+            ClientRequestHandler clientRequestHandler = ClientRequestHandler.getInstance();
+            Message message = clientRequestHandler.handleRequest(connection, request);
             messageQueue.addMessage(connection.getConnectionId(), message);
         }
 
@@ -163,6 +159,7 @@ public class NIOServer {
             // 将客户端建立好的SocketChannel注册到selector
             SelectionKey clientSelectionKey = socketChannel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
 
+            ClientConnectManager clientConnectManager = ClientConnectManager.getInstance();
             ClientConnection clientConnection = new ClientConnection(socketChannel, clientSelectionKey);
             clientSelectionKey.attach(clientConnection);
             clientConnectManager.add(clientConnection);

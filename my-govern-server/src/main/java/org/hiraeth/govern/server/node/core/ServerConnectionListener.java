@@ -37,7 +37,7 @@ public class ServerConnectionListener extends Thread{
     public void run() {
         // 是否遇到了异常崩溃
         boolean fatalError = false;
-        while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING && retries <= DEFAULT_RETRIES) {
+        while (NodeInfoManager.getNodeStatus() == NodeStatus.RUNNING && retries <= DEFAULT_RETRIES) {
             try {
                 ServerAddress currentServerAddress = Configuration.getInstance().getCurrentNodeAddress();
                 InetSocketAddress endpoint = new InetSocketAddress(currentServerAddress.getHost(), currentServerAddress.getInternalPort());
@@ -49,7 +49,7 @@ public class ServerConnectionListener extends Thread{
                 log.info("server binding {}.", currentServerAddress.getNodeId());
 
                 // 跟发起连接请求的 server 建立网络连接
-                while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING){
+                while (NodeInfoManager.getNodeStatus() == NodeStatus.RUNNING){
                     Socket socket = serverSocket.accept();
                     socket.setTcpNoDelay(true);
                     socket.setSoTimeout(0); // 读取数据超时时间为0 ,即无数据时阻塞
@@ -98,7 +98,7 @@ public class ServerConnectionListener extends Thread{
             }
         }
 
-        NodeStatusManager.setNodeStatus(NodeStatus.FATAL);
+        NodeInfoManager.setNodeStatus(NodeStatus.FATAL);
         log.error("failed to listen other server node's connection, although retried {} times, going to shutdown.", DEFAULT_RETRIES);
     }
 

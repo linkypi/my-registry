@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hiraeth.govern.common.domain.SlotRange;
 
+import java.util.List;
+
 
 /**
  * @author: lynch
@@ -17,7 +19,7 @@ import org.hiraeth.govern.common.domain.SlotRange;
 public class SlotReplica {
     private String nodeId;
 
-    private SlotRange slotRange;
+    private List<SlotRange> slotRanges;
 
     public SlotReplica(){
     }

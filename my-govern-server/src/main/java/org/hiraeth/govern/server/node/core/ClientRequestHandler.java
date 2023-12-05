@@ -7,8 +7,10 @@ import org.hiraeth.govern.common.domain.*;
 import org.hiraeth.govern.common.domain.request.*;
 import org.hiraeth.govern.common.domain.response.FetchMetaDataResponse;
 import org.hiraeth.govern.common.domain.response.Response;
+import org.hiraeth.govern.common.domain.response.ResponseStatusCode;
 import org.hiraeth.govern.common.domain.response.SubscribeResponse;
 import org.hiraeth.govern.common.util.CommonUtil;
+import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.*;
 import org.hiraeth.govern.server.entity.request.HeartbeatForwardRequest;
 import org.hiraeth.govern.server.entity.request.RegisterForwardRequest;
@@ -20,6 +22,7 @@ import org.hiraeth.govern.server.slot.SlotManager;
 
 import java.nio.channels.SocketChannel;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -30,16 +33,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 @Slf4j
 public class ClientRequestHandler {
 
-    private RemoteNodeManager remoteNodeManager;
-    private SlotManager slotManager;
+    private ClientRequestHandler() {
+    }
 
-    private ServerNetworkManager serverNetworkManager;
-
-
-    public ClientRequestHandler(RemoteNodeManager remoteNodeManager, SlotManager slotManager,  ServerNetworkManager serverNetworkManager) {
-        this.remoteNodeManager = remoteNodeManager;
-        this.slotManager = slotManager;
-        this.serverNetworkManager = serverNetworkManager;
+    public static class Singleton {
+        private static final ClientRequestHandler instance = new ClientRequestHandler();
+    }
+    public static ClientRequestHandler getInstance(){
+        return Singleton.instance;
     }
 
     /**
@@ -93,6 +94,8 @@ public class ClientRequestHandler {
         try {
             String serviceName = subscribeRequest.getServiceName();
             int routeSlot = CommonUtil.routeSlot(serviceName);
+
+            SlotManager slotManager = SlotManager.getInstance();
             Slot slot = slotManager.getSlot(routeSlot);
 
             List<ServiceInstanceInfo> serviceInstanceInfos = slot.subscribe(connectionId, serviceName);
@@ -120,6 +123,7 @@ public class ClientRequestHandler {
             ServiceInstanceInfo serviceInstanceInfo = new ServiceInstanceInfo(serviceName, instanceIp, servicePort);
 
             int slotNum = CommonUtil.routeSlot(serviceName);
+            SlotManager slotManager = SlotManager.getInstance();
             Slot slot = slotManager.getSlot(slotNum);
             if(!slot.isReplica()) {
                 slot.heartbeat(serviceInstanceInfo);
@@ -148,6 +152,7 @@ public class ClientRequestHandler {
             ServiceInstanceInfo serviceInstanceInfo = new ServiceInstanceInfo(serviceName, instanceIp, servicePort);
 
             int slotNum = CommonUtil.routeSlot(serviceName);
+            SlotManager slotManager = SlotManager.getInstance();
             Slot slot = slotManager.getSlot(slotNum);
 
             if(!slot.isReplica()) {
@@ -167,6 +172,58 @@ public class ClientRequestHandler {
         return response;
     }
 
+    private void checkSlotLocation(Slot slot, ClientConnection connection, Request request){
+
+        // 若主分片在当前机器则直接可以处理
+        Configuration configuration = Configuration.getInstance();
+        String currentNodeId = configuration.getNodeId();
+        if(currentNodeId.equals(slot.getNodeId())){
+
+            // TODO: 2023/12/5  主分片节点正常, 此时当前节点可以处理读写请求, 处理完成后返回
+
+            return;
+        }
+
+        // 若主分片所在节点已经与当前节点断开连接 则直接查询其对应的副本分片返回
+        RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
+        boolean connected = remoteNodeManager.isConnected(slot.getNodeId());
+        if(connected){
+
+            // TODO: 2023/12/5  主分片节点正常, 此时主分片节点可以处理读写请求
+            // TODO: 2023/12/5  当前节点需转发请求到主分片节点进行处理, 处理完成后返回当前节点, 而后由当前节点返回客户端
+
+            return;
+        }
+
+        // 到此, 主分片已经不可用, 即主分片节点已无法提供服务, 此时只能处理读请求, 无法处理写请求
+        // 紧接着只能从主分片所在副本节点中去查询到相关数据
+        NodeInfoManager nodeInfoManager = NodeInfoManager.getInstance();
+        Map<String, List<SlotReplica>> slotReplicas = nodeInfoManager.getNodeSlotInfo().getSlotReplicas();
+        if(slotReplicas.containsKey(slot.getNodeId())){
+            List<SlotReplica> replicas = slotReplicas.get(slot.getNodeId());
+            // 检查该副本是否在当前机器, 若在则直接处理后返回, 仅针对读请求, 写请求需集群完成宕机处理后方可处理
+            boolean exist = replicas.stream().anyMatch(a -> a.getNodeId().equals(currentNodeId));
+            if(exist){
+
+                // TODO: 2023/12/5  从本机获取数据后返回
+                return;
+            }
+
+            // TODO: 2023/12/5  否则转发到其他机器获取数据
+            return;
+        }
+
+        // 否则直接返回当前集群不可用
+        ClientMessageQueue messageQueue = ClientMessageQueue.getInstance();
+        String connectionId = connection.getConnectionId();
+        if(nodeInfoManager.getStage() == ElectionStage.ELStage.ELECTING){
+            Response response = new Response(ResponseStatusCode.Electing.getCode());
+            response.setRequestId(request.getRequestId());
+            response.setRequestType(request.getRequestType());
+            messageQueue.addMessage(connectionId, response);
+        }
+    }
+
     private boolean forwardHeartbeatToPrimarySlotSync(String nodeId, HeartbeatRequest heartbeatRequest){
         String serviceName = heartbeatRequest.getServiceName();
         String serviceInstanceIp = heartbeatRequest.getServiceInstanceIp();
@@ -175,6 +232,7 @@ public class ClientRequestHandler {
         request.buildBuffer();
 
         log.info("forward register service to {} {}...", nodeId, serviceName);
+        ServerNetworkManager serverNetworkManager = ServerNetworkManager.getInstance();
         serverNetworkManager.sendRequest(nodeId, request);
 
         ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
@@ -203,6 +261,7 @@ public class ClientRequestHandler {
         forwardMessage.buildBuffer();
 
         log.info("forward register service to {} {}...", nodeId, JSON.toJSONString(registerServiceRequest));
+        ServerNetworkManager serverNetworkManager = ServerNetworkManager.getInstance();
         serverNetworkManager.sendRequest(nodeId, forwardMessage);
 
         ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
@@ -218,10 +277,11 @@ public class ClientRequestHandler {
 
 
     private FetchMetaDataResponse createMetaData(FetchMetaDataRequest request){
-        NodeStatusManager nodeStatusManager = NodeStatusManager.getInstance();
+        RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
+        NodeInfoManager nodeInfoManager = NodeInfoManager.getInstance();
         FetchMetaDataResponse fetchMetaDataResponse = new FetchMetaDataResponse();
         fetchMetaDataResponse.setRequestId(request.getRequestId());
-        fetchMetaDataResponse.setSlots(nodeStatusManager.getNodeSlotInfo().getSlots());
+        fetchMetaDataResponse.setSlots(nodeInfoManager.getNodeSlotInfo().getSlots());
         fetchMetaDataResponse.setServerAddresses(remoteNodeManager.getAllOnlineServerAddresses());
         fetchMetaDataResponse.buildBuffer();
         return fetchMetaDataResponse;

@@ -2,10 +2,14 @@ package org.hiraeth.govern.server.node.core;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.NodeSlotInfo;
+import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.request.ElectionResult;
 import org.hiraeth.govern.server.entity.ServerRole;
 import org.hiraeth.govern.server.entity.NodeStatus;
+
+import java.util.Objects;
 
 /**
  * @author: lynch
@@ -14,15 +18,16 @@ import org.hiraeth.govern.server.entity.NodeStatus;
  */
 @Getter
 @Setter
-public class NodeStatusManager {
-    private NodeStatusManager() {
+@Slf4j
+public class NodeInfoManager {
+    private NodeInfoManager() {
     }
 
     public static class Singleton {
-        private static final NodeStatusManager instance = new NodeStatusManager();
+        private static final NodeInfoManager instance = new NodeInfoManager();
     }
 
-    public static NodeStatusManager getInstance() {
+    public static NodeInfoManager getInstance() {
         return Singleton.instance;
     }
 
@@ -48,6 +53,27 @@ public class NodeStatusManager {
         this.startTimestamp = electionResult.getTimestamp();
         this.serverRole = electionResult.getServerRole();
         this.stage = elStage;
+    }
+
+    public ServerRole updateToLeading(ElectionResult electionResult) {
+        ElectionStage.setStatus(ElectionStage.ELStage.LEADING);
+        String leaderId = electionResult.getControllerId();
+        ServerRole serverRole = ServerRole.Candidate;
+        String currentNodeId = Configuration.getInstance().getNodeId();
+        if (Objects.equals(currentNodeId, leaderId)) {
+            serverRole = ServerRole.Controller;
+            log.info("leader start on current node, epoch {} !!!", electionResult.getEpoch());
+        }
+        electionResult.setServerRole(serverRole);
+
+        // update current node status
+        NodeInfoManager nodeInfoManager = NodeInfoManager.getInstance();
+        nodeInfoManager.updateStatus(electionResult, ElectionStage.ELStage.LEADING);
+        return serverRole;
+    }
+
+    public void setElectingStage(){
+        this.stage = ElectionStage.ELStage.ELECTING;
     }
 
     public static NodeStatus getNodeStatus() {

@@ -18,36 +18,17 @@ import java.util.Objects;
  * @date: 2023/11/27 17:27
  */
 @Slf4j
-public class ServerInstance {
-
-    private ServerNetworkManager serverNetworkManager;
-    /**
-     * controller候选者
-     */
-    protected ControllerCandidate controllerCandidate;
-
-    /**
-     * 远程controller节点管理组件
-     */
-    private final RemoteNodeManager remoteNodeManager;
-
-    private SlotManager slotManager;
+public class ServerNode {
 
     private NIOServer NIOServer;
 
-
-    public ServerInstance() {
-        this.remoteNodeManager = new RemoteNodeManager();
-        this.serverNetworkManager = new ServerNetworkManager(remoteNodeManager);
-
-        this.slotManager = new SlotManager();
+    public ServerNode() {
 
         ServerMessageQueue messageQueues = ServerMessageQueue.getInstance();
         messageQueues.initQueue();
 
-        new ServerRequestHandler(slotManager, serverNetworkManager).start();
-
-        this.NIOServer = new NIOServer(remoteNodeManager, slotManager, serverNetworkManager);
+        new ServerRequestHandler().start();
+        this.NIOServer = new NIOServer();
 //        new DetectBlockingQueueThread().start();
     }
 
@@ -76,8 +57,10 @@ public class ServerInstance {
 
         Configuration configuration = Configuration.getInstance();
         RemoteServer remoteServer = new RemoteServer(configuration.getServerAddress(), configuration.isControllerCandidate());
+        RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
         remoteNodeManager.addRemoteServerNode(remoteServer);
 
+        ServerNetworkManager serverNetworkManager = ServerNetworkManager.getInstance();
         // 启动线程监听
         serverNetworkManager.listenInternalPortAndWaitConnect();
         // 主动连接其他 controller.candidate.servers
@@ -90,27 +73,15 @@ public class ServerInstance {
             // 等待其他controller节点都连接完成
             serverNetworkManager.waitAllTheOtherControllerConnected();
 
-            this.controllerCandidate = new ControllerCandidate(serverNetworkManager, remoteNodeManager);
-            ElectionResult electionResult = controllerCandidate.voteForControllerElection();
-
-            ElectionStage.setStatus(ElectionStage.ELStage.LEADING);
-            String leaderId = electionResult.getControllerId();
-            ServerRole serverRole = ServerRole.Candidate;
-            String currentNodeId = Configuration.getInstance().getNodeId();
-            if (Objects.equals(currentNodeId, leaderId)) {
-                serverRole = ServerRole.Controller;
-                log.info("leader start on current node, epoch {} !!!", electionResult.getEpoch());
-            }
-            electionResult.setServerRole(serverRole);
-
-            // update current node status
-            NodeStatusManager nodeStatusManager = NodeStatusManager.getInstance();
-            nodeStatusManager.updateStatus(electionResult, ElectionStage.ELStage.LEADING);
+            ElectionResult electionResult = ControllerCandidate.getInstance().electController();
+            NodeInfoManager nodeInfoManager = NodeInfoManager.getInstance();
+            ServerRole serverRole = nodeInfoManager.updateToLeading(electionResult);
 
             if(serverRole == ServerRole.Controller){
-                Controller controller = new Controller(remoteNodeManager, serverNetworkManager, slotManager);
+                Controller controller = Controller.getInstance();
                 NodeSlotInfo nodeSlotInfo = controller.allocateSlots();
-                nodeStatusManager.setNodeSlotInfo(nodeSlotInfo);
+
+                nodeInfoManager.setNodeSlotInfo(nodeSlotInfo);
             }else{
                 // 接收槽位分配
                 waitForControllerSlotResult();
@@ -122,6 +93,7 @@ public class ServerInstance {
         log.info("server has started now !!!");
     }
 
+
     /**
      * 等待 Leader 分配槽位
      */
@@ -129,7 +101,7 @@ public class ServerInstance {
         try {
             log.info("wait for controller allocate slots ...");
             ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
-            while (NodeStatusManager.isRunning()) {
+            while (NodeInfoManager.isRunning()) {
                 if (messageQueue.countRequestMessage(ServerRequestType.AllocateSlots) > 0) {
                     acceptSlotAndReplyAck();
                     continue;
@@ -140,45 +112,45 @@ public class ServerInstance {
                     SlotAllocateResultConfirm confirm = SlotAllocateResultConfirm.parseFrom(message);
                     if (confirm.getSlots() == null || confirm.getSlots().size() == 0) {
                         log.error("allocated slots confirm is null: {}", JSON.toJSONString(confirm));
-                        NodeStatusManager.setFatal();
+                        NodeInfoManager.setFatal();
                         return;
                     }
 
                     // 初始化自身负责的槽位
+                    SlotManager slotManager = SlotManager.getInstance();
                     NodeSlotInfo nodeSlotInfo = slotManager.buildCurrentNodeSlotInfo(confirm.getSlots(), confirm.getSlotReplicas());
                     slotManager.persist(nodeSlotInfo);
 
-                    NodeStatusManager nodeStatusManager = NodeStatusManager.getInstance();
-                    nodeStatusManager.setNodeSlotInfo(nodeSlotInfo);
+                    NodeInfoManager nodeInfoManager = NodeInfoManager.getInstance();
+                    nodeInfoManager.setNodeSlotInfo(nodeSlotInfo);
                     break;
                 }
             }
         } catch (Exception ex) {
             log.error("wait for slot allocate result occur error", ex);
-            NodeStatusManager.setFatal();
+            NodeInfoManager.setFatal();
         }
     }
 
     /**
      * 接收Leader槽位分配并回复ACK
-     * @return
      */
-    private boolean acceptSlotAndReplyAck() {
+    private void acceptSlotAndReplyAck() {
         ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
         RequestMessage message = messageQueue.takeRequestMessage(ServerRequestType.AllocateSlots);
         SlotAllocateResult slotAllocateResult = SlotAllocateResult.parseFrom(message);
         if (slotAllocateResult.getSlots() == null || slotAllocateResult.getSlots().size() == 0) {
             log.error("allocated slots from controller is null: {}", JSON.toJSONString(slotAllocateResult));
-            NodeStatusManager.setFatal();
-            return true;
+            NodeInfoManager.setFatal();
+            return;
         }
 
         // 回复ACK
         SlotAllocateResultAck resultAck = new SlotAllocateResultAck();
         resultAck.buildBuffer();
 
+        ServerNetworkManager serverNetworkManager = ServerNetworkManager.getInstance();
         serverNetworkManager.sendRequest(slotAllocateResult.getFromNodeId(), resultAck);
         log.debug("replyed ack slot allocation");
-        return true;
     }
 }

@@ -1,14 +1,17 @@
 package org.hiraeth.govern.server.node.network;
 
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.server.entity.ServerRequestType;
-import org.hiraeth.govern.server.node.core.NodeStatusManager;
 import org.hiraeth.govern.server.entity.ServerMessage;
+import org.hiraeth.govern.server.entity.ServerRequestType;
+import org.hiraeth.govern.server.ha.HighAvailabilityManager;
+import org.hiraeth.govern.server.node.core.NodeInfoManager;
 import org.hiraeth.govern.server.node.core.ServerMessageQueue;
 
 import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 
 /**
@@ -23,11 +26,20 @@ public class ServerReadThread extends Thread{
      */
     private Socket socket;
     private DataInputStream inputStream;
+    private String remoteNodeId;
+    private ServerNetworkManager serverNetworkManager;
+    private IOThreadRunningSignal ioThreadRunningSignal;
 
-    public ServerReadThread(Socket socket){
-        this.socket = socket;
+    public ServerReadThread(String remoteNodeId, Socket socket, ServerNetworkManager serverNetworkManager,
+                            IOThreadRunningSignal ioThreadRunningSignal){
+
         try {
+            this.remoteNodeId = remoteNodeId;
+            this.socket = socket;
+            this.ioThreadRunningSignal = ioThreadRunningSignal;
+            this.serverNetworkManager = serverNetworkManager;
             this.inputStream = new DataInputStream(socket.getInputStream());
+            this.setName(remoteNodeId + "-" + ServerReadThread.class.getSimpleName());
             socket.setSoTimeout(0);
         }catch (IOException ex){
             log.error("get input stream from socket failed.", ex);
@@ -37,8 +49,8 @@ public class ServerReadThread extends Thread{
     @Override
     public void run() {
 
-        log.info("start read io thread for remote node: {}", socket.getRemoteSocketAddress());
-        while (NodeStatusManager.isRunning()) {
+        log.info("start read io thread for remote node: {}", remoteNodeId);
+        while (NodeInfoManager.isRunning() && ioThreadRunningSignal.getIsRunning()) {
 
             try {
                 // 从IO流读取一条消息
@@ -54,14 +66,24 @@ public class ServerReadThread extends Thread{
                 ServerRequestType requestType = ServerRequestType.of(message.getRequestType());
                 log.info("receive message from {}, msg type {}, request type: {}, request id: {}",
                        message.getFromNodeId(), message.getMessageType(), requestType, message.getRequestId());
-            } catch (IOException ex) {
+            } catch (EOFException | SocketException ex) {
+                log.error("remote server disconnected {}", remoteNodeId, ex);
+
+                serverNetworkManager.clearConnection(remoteNodeId);
+
+                HighAvailabilityManager highAvailabilityManager = HighAvailabilityManager.getInstance();
+                highAvailabilityManager.handleDisconnectedException(remoteNodeId);
+
+            }catch (Exception ex) {
                 log.error("read message from remote node failed.", ex);
-                NodeStatusManager.setFatal();
+                NodeInfoManager.setFatal();
             }
         }
 
-//        if (NodeStatusManager.isFatal()) {
-//            log.error("read io thread encounters fatal exception, system is going to shutdown.");
-//        }
+        if(NodeInfoManager.isFatal()){
+            log.error("remote node {} read io thread encounters fatal exception, system is going to shutdown.", remoteNodeId);
+        }else{
+            log.info("read io thread exit for remote node {}.", remoteNodeId);
+        }
     }
 }

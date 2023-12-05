@@ -14,7 +14,7 @@ public class ElectionStage {
         // 选举阶段
         ELECTING(1),
         // 领导阶段, 即已选举产生 leader
-        LEADING(3);
+        LEADING(2);
 
         ELStage(int val){
             this.value = val;

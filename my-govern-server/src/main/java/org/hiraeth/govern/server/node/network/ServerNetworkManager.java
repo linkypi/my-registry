@@ -29,8 +29,19 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ServerNetworkManager extends NetworkManager {
 
+    private ServerNetworkManager() {
+        new RetryConnectServerThread(retryConnectControllers).start();
+    }
+
+    public static class Singleton {
+        private static final ServerNetworkManager instance = new ServerNetworkManager();
+    }
+    public static ServerNetworkManager getInstance(){
+        return Singleton.instance;
+    }
+
     private static final int CONNECT_TIMEOUT = 5000;
-    private static final long RETRY_CONNECT_INTERVAL = 1 * 30 * 1000L;
+
     // 检查跟其他所有节点的连接状态的时间间隔
     private static final long CHECK_ALL_OTHER_NODES_CONNECT_INTERVAL = 5 * 1000L;
     private static final int DEFAULT_RETRIES = 5;
@@ -38,29 +49,17 @@ public class ServerNetworkManager extends NetworkManager {
     /**
      * 等待重试发起连接的controller节点集合
      */
-    private CopyOnWriteArrayList<ServerAddress> retryConnectcontrollers = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<ServerAddress> retryConnectControllers = new CopyOnWriteArrayList<>();
     /**
      * 与其他server节点建立好的连接
      */
-    private Map<String, Socket> remoteServerSockets = new ConcurrentHashMap<>();
+    private final Map<String, Socket> remoteServerSockets = new ConcurrentHashMap<>();
     /**
      * 发送队列
      */
-    private Map<String, LinkedBlockingQueue<ServerMessage>> sendQueues = new ConcurrentHashMap<>();
-    /**
-     * 接收队列
-     */
-    private Map<Integer, LinkedBlockingQueue<ServerMessage>> receiveQueues = new ConcurrentHashMap<>();
+    private final Map<String, LinkedBlockingQueue<ServerMessage>> sendQueues = new ConcurrentHashMap<>();
 
-    /**
-     * 远程controller节点管理组件
-     */
-    private RemoteNodeManager remoteNodeManager;
-
-    public ServerNetworkManager(RemoteNodeManager remoteNodeManager) {
-        this.remoteNodeManager = remoteNodeManager;
-        new RetryConnectServerThread().start();
-    }
+    private final Map<String, IOThreadRunningSignal> ioThreadsRunningSignals = new ConcurrentHashMap<>();
 
     /**
      * 主动连接排在自身前面的所有机器
@@ -90,7 +89,7 @@ public class ServerNetworkManager extends NetworkManager {
      * 等待成功连接其他所有节点
      */
     public void waitAllTheOtherControllerConnected() {
-        while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING) {
+        while (NodeInfoManager.getNodeStatus() == NodeStatus.RUNNING) {
 
             boolean allTheOtherNodesConnected = true;
             List<String> allTheOtherNodeIds = Configuration.getInstance().getAllTheOtherControllerNodeIds();
@@ -118,19 +117,20 @@ public class ServerNetworkManager extends NetworkManager {
 
     /**
      * 发送网络请求
+     *
      * @param remoteNodeId
      * @param message
-     * @return
      */
-    public boolean sendRequest(String remoteNodeId, ServerMessage message) {
+    public void sendRequest(String remoteNodeId, ServerMessage message) {
         try {
+            if (sendQueues == null) {
+                return;
+            }
             LinkedBlockingQueue<ServerMessage> sendQueue = sendQueues.get(remoteNodeId);
             sendQueue.put(message);
         } catch (Exception ex) {
             log.error("put request to send queue failed, remote node id: {}", remoteNodeId, ex);
-            return false;
         }
-        return true;
     }
 
     public void addRemoteNodeSocket(String remoteNodeId, Socket socket) {
@@ -138,13 +138,13 @@ public class ServerNetworkManager extends NetworkManager {
         this.remoteServerSockets.put(remoteNodeId, socket);
     }
 
-    private boolean connectControllerNode(ServerAddress remoteServerAddress) {
+    public boolean connectControllerNode(ServerAddress remoteServerAddress) {
 
         log.info("connecting other node {}", remoteServerAddress.getNodeId());
 
         boolean fatalError = false;
         int retries = 0;
-        while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING && retries <= DEFAULT_RETRIES) {
+        while (NodeInfoManager.getNodeStatus() == NodeStatus.RUNNING && retries <= DEFAULT_RETRIES) {
             try {
                 InetSocketAddress endpoint = new InetSocketAddress(remoteServerAddress.getHost(), remoteServerAddress.getInternalPort());
 
@@ -186,12 +186,12 @@ public class ServerNetworkManager extends NetworkManager {
 
         // 系统异常崩溃
         if(fatalError) {
-            NodeStatusManager.setFatal();
+            NodeInfoManager.setFatal();
             return false;
         }
 
-        if (!retryConnectcontrollers.contains(remoteServerAddress)) {
-            retryConnectcontrollers.add(remoteServerAddress);
+        if (!retryConnectControllers.contains(remoteServerAddress)) {
+            retryConnectControllers.add(remoteServerAddress);
             log.warn("connect to controller node {} failed, add it into retry connect controller node list.",
                     remoteServerAddress.getNodeId());
         }
@@ -204,38 +204,14 @@ public class ServerNetworkManager extends NetworkManager {
         // 初始化发送请求队列
         sendQueues.put(remoteNodeId, sendQueue);
 
-        new ServerWriteThread(socket, sendQueue).start();
-        new ServerReadThread(socket).start();
-    }
-
-    class RetryConnectServerThread extends Thread {
-        @Override
-        public void run() {
-            while (NodeStatus.RUNNING == NodeStatusManager.getInstance().getNodeStatus()) {
-                try {
-                    Thread.sleep(RETRY_CONNECT_INTERVAL);
-                } catch (InterruptedException e) {
-                    log.error("thread interrupted cause of unknown reasons.", e);
-                }
-
-                // 重试连接, 连接成功后移除相关节点
-                List<ServerAddress> retrySuccessAddresses = new ArrayList<>();
-                for (ServerAddress serverAddress : retryConnectcontrollers) {
-                    log.info("scheduled retry connect controller node {}.", serverAddress.getNodeId());
-                    if (connectControllerNode(serverAddress)) {
-                        log.info("scheduled retry connect controller node success {}.", serverAddress.getNodeId());
-                        retrySuccessAddresses.add(serverAddress);
-                    }
-                }
-
-                for (ServerAddress address : retrySuccessAddresses) {
-                    retryConnectcontrollers.remove(address);
-                }
-            }
-        }
+        IOThreadRunningSignal ioThreadRunningSignal = new IOThreadRunningSignal(true);
+        new ServerWriteThread(remoteNodeId, socket, sendQueue, ioThreadRunningSignal).start();
+        new ServerReadThread(remoteNodeId, socket, this, ioThreadRunningSignal).start();
+        ioThreadsRunningSignals.put(remoteNodeId, ioThreadRunningSignal);
     }
 
     public void addRemoteServerNode(RemoteServer remoteServer) {
+        RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
         remoteNodeManager.addRemoteServerNode(remoteServer);
         // 更新Configuration实例
         Configuration configuration = Configuration.getInstance();
@@ -245,6 +221,29 @@ public class ServerNetworkManager extends NetworkManager {
             serverAddress.setClientHttpPort(remoteServer.getClientHttpPort());
             serverAddress.setClientTcpPort(remoteServer.getClientTcpPort());
         }
+    }
+
+    /**
+     * 清理连接资源
+     * @param remoteNodeId
+     */
+    public void clearConnection(String remoteNodeId) {
+
+        RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
+        remoteNodeManager.removeRemoteServerNode(remoteNodeId);
+        Socket socket = remoteServerSockets.get(remoteNodeId);
+        try {
+            socket.close();
+        } catch (Exception ex) {
+            log.error("close socket occur error when removing remote node", ex);
+        }
+        remoteServerSockets.remove(remoteNodeId);
+
+        // 必须向队列发送一条消息，才不会使得消费端阻塞在 take() 上
+        sendQueues.get(remoteNodeId).add(new ServerMessage(true));
+        IOThreadRunningSignal ioThreadRunningSignal = ioThreadsRunningSignals.get(remoteNodeId);
+        ioThreadRunningSignal.setIsRunning(false);
+        sendQueues.remove(remoteNodeId);
     }
 
 }

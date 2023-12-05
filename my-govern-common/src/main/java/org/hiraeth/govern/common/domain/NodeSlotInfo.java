@@ -18,10 +18,12 @@ import java.util.Map;
 public class NodeSlotInfo {
     // 节点id
     private String nodeId;
-    // 节点负责额槽位
-    private SlotRange slotRange;
+
+    // 节点负责的槽位, 使用集合存储是为了方便节点故障时接管其他槽位
+    private List<SlotRange> slotRanges;
+
     // 槽位分片，即一份完整数据会拆分到几个节点存储
-    private Map<String, SlotRange> slots;
+    private Map<String, List<SlotRange>> slots;
     // 当前节点存放的其他节点槽位副本信息
     private Map<String, List<SlotReplica>> slotReplicas;
 }

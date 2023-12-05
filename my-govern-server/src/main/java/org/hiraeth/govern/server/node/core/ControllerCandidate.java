@@ -27,11 +27,14 @@ import java.util.concurrent.CountDownLatch;
 @Setter
 @Slf4j
 public class ControllerCandidate {
-    /**
-     * 集群内部节点之间进行网络通信的组件
-     */
-    private ServerNetworkManager serverNetworkManager;
-    private RemoteNodeManager remoteNodeManager;
+
+    public static class Singleton {
+        private static final ControllerCandidate instance = new ControllerCandidate();
+    }
+    public static ControllerCandidate getInstance(){
+        return Singleton.instance;
+    }
+
     /**
      * 投票轮次
      */
@@ -53,24 +56,20 @@ public class ControllerCandidate {
      */
     private volatile HashSet<String> confirmList = new HashSet<>();
 
-    public ControllerCandidate(ServerNetworkManager serverNetworkManager,
-                               RemoteNodeManager remoteNodeManager) {
-        this.serverNetworkManager = serverNetworkManager;
-        this.remoteNodeManager = remoteNodeManager;
+    private ControllerCandidate() {
         new ElectionCompleteHandlerThread().start();
     }
 
-    public ElectionResult voteForControllerElection() {
-
+    public ElectionResult electController() {
+        RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
         List<RemoteServer> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
 
         log.debug("other controller candidate include: {}", JSON.toJSONString(otherControllerCandidates));
-
         log.info("start election controller...");
 
         Configuration configuration = Configuration.getInstance();
         String currentNodeId = configuration.getNodeId();
-        this.currentVote = new Vote(1, currentNodeId);
+        this.currentVote = new Vote(voteRound, currentNodeId);
 
         ElectionResult eleResult = startElection();
         notifyOtherCandidates(eleResult.getControllerId());
@@ -87,12 +86,13 @@ public class ControllerCandidate {
      * leader 选举完成后通知其他节点
      */
     private void notifyOtherCandidates(String controllerId) {
+        RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
         List<RemoteServer> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
         ElectionResult electionResult = ElectionResult.newElectingResult(controllerId, voteRound);
         electionResult.buildBuffer();
 
         for (RemoteServer remoteServer : otherControllerCandidates) {
-            serverNetworkManager.sendRequest(remoteServer.getNodeId(), electionResult);
+            ServerNetworkManager.getInstance().sendRequest(remoteServer.getNodeId(), electionResult);
         }
         log.info("notified election result: {}", JSON.toJSONString(electionResult));
     }
@@ -103,7 +103,7 @@ public class ControllerCandidate {
      * @param targetId 目标controller节点
      */
     private void startNewVoteRound(String targetId) {
-        voteRound++;
+        voteRound ++;
         if (targetId != null) {
             log.info("start voting round {}, target controller id: {}.", voteRound, targetId);
         } else {
@@ -118,6 +118,7 @@ public class ControllerCandidate {
         currentVote.setRound(voteRound);
         currentVote.setTargetNodeId(targetId);
         currentVote.setBuffer(null);
+        currentVote.buildBuffer();
 
         votes.clear();
         // 首先给自己投一票
@@ -125,16 +126,15 @@ public class ControllerCandidate {
 
         // 在首轮投票中当前节点向其他节点拉票, 希望其他节点都投自己
         // 若在本轮投票仍未出现结果, 则发起新一轮投票, 投票的节点是当前所有选票节点中nodeId最大的一个
+        RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
         List<RemoteServer> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
-
-        currentVote.buildBuffer();
 
         for (RemoteServer remoteServer : otherControllerCandidates) {
             String remoteNodeId = remoteServer.getNodeId();
             currentVote.setFromNodeId(currentNodeId);
             currentVote.setToNodeId(remoteNodeId);
             currentVote.setRequestId(SnowFlakeIdUtil.getNextId());
-            serverNetworkManager.sendRequest(remoteNodeId, currentVote);
+            ServerNetworkManager.getInstance().sendRequest(remoteNodeId, currentVote);
             log.info("send vote to remote node: {}, vote round: {}", remoteNodeId, currentVote.getRound());
         }
     }
@@ -148,7 +148,7 @@ public class ControllerCandidate {
         ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
         // 为防止无限循环 通过 ElectionStage 控制
         // 因为很有可能当前节点因为网络问题没有收到投票, 导致在此循环等待
-        while (NodeStatusManager.isRunning() && ElectionStage.getStatus() == ElectionStage.ELStage.ELECTING) {
+        while (NodeInfoManager.isRunning() && ElectionStage.getStatus() == ElectionStage.ELStage.ELECTING) {
             try {
                 Thread.sleep(300);
                 if (messageQueue.countRequestMessage(ServerRequestType.Vote) > 0) {
@@ -176,7 +176,7 @@ public class ControllerCandidate {
         public void run() {
             try {
                 ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
-                while (NodeStatusManager.isRunning()) {
+                while (NodeInfoManager.isRunning()) {
                     if (messageQueue.countRequestMessage(ServerRequestType.ElectionComplete) > 0) {
                         handleElectionResult();
                     }
@@ -263,6 +263,7 @@ public class ControllerCandidate {
             }
             // 大多数节点已确认选举结果, 进入领导阶段
             String nodeId = Configuration.getInstance().getNodeId();
+            RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
             if (Objects.equals(nodeId, electionResult.getControllerId()) && confirmList.size() >= remoteNodeManager.getQuorum()) {
                 log.info("quorum controller nodes has confirmed current election result: {}.", JSON.toJSONString(electionResult));
 
@@ -277,7 +278,7 @@ public class ControllerCandidate {
                 message.buildBuffer();
 
                 for (RemoteServer remoteServer : remoteNodeManager.getOtherControllerCandidates()) {
-                    serverNetworkManager.sendRequest(remoteServer.getNodeId(), message);
+                    ServerNetworkManager.getInstance().sendRequest(remoteServer.getNodeId(), message);
                 }
                 log.info("election has finished, all the other controller nodes has been notified.");
 
@@ -299,7 +300,7 @@ public class ControllerCandidate {
             log.info("rejected remote election result: {}, because current election result be better: {}",
                     JSON.toJSONString(remoteEleResult), JSON.toJSONString(electionResult));
             // 发送 ACK 给 leader , 确保其他非leader节点都已收到
-            serverNetworkManager.sendRequest(remoteEleResult.getFromNodeId(), completeAck);
+            ServerNetworkManager.getInstance().sendRequest(remoteEleResult.getFromNodeId(), completeAck);
         }
 
         /**
@@ -318,7 +319,7 @@ public class ControllerCandidate {
 
             log.info("accepted remote election result: {}", JSON.toJSONString(remoteEleResult));
             // 发送 ACK 给 leader , 确保其他非leader节点都已收到
-            serverNetworkManager.sendRequest(remoteNodeId, completeAck);
+            ServerNetworkManager.getInstance().sendRequest(remoteNodeId, completeAck);
         }
 
         private void finishedVoting() {
@@ -333,10 +334,10 @@ public class ControllerCandidate {
 
     private String handleVoteResponse(Vote vote) {
 
+        RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
         int totalCandidates = remoteNodeManager.getTotalCandidate();
         // 定义 quorum 数量，如若controller候选节点有三个，则quorum = 3 / 2 + 1 = 2
         int quorum = remoteNodeManager.getQuorum();
-
 //        log.info("receive vote from remote node: {}", JSON.toJSONString(vote));
 
         if (vote.getFromNodeId() == null) {
@@ -429,7 +430,6 @@ public class ControllerCandidate {
             if (count == null) {
                 count = 0;
             }
-
             voteCountMap.put(controllerNodeId, ++count);
         }
 

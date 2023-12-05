@@ -8,6 +8,7 @@ import org.hiraeth.govern.common.domain.request.Request;
 import org.hiraeth.govern.common.domain.RequestType;
 import org.hiraeth.govern.common.domain.response.FetchMetaDataResponse;
 import org.hiraeth.govern.common.domain.response.Response;
+import org.hiraeth.govern.common.domain.response.ResponseStatusCode;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -16,6 +17,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -174,6 +176,12 @@ public class IOThread extends Thread {
     }
 
     private void handlerResponse(Response response) {
+        // 集群选举中 无法处理当前请求
+        if(!response.isSuccess() && Objects.equals(response.getStatusCode(), ResponseStatusCode.Electing.getCode())){
+            log.info("cluster is electing, cannot handle this request, request type: {}, request id: {}",
+                    response.getRequestType(), response.getRequestId());
+            return;
+        }
         if (response.getRequestType() == RequestType.FetchMetaData.getValue()) {
             FetchMetaDataResponse fetchMetaDataResponse = FetchMetaDataResponse.parseFrom(response);
             serviceInstance.initMetaData(fetchMetaDataResponse);

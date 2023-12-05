@@ -21,14 +21,9 @@ import org.hiraeth.govern.server.slot.SlotManager;
 @Slf4j
 public class ServerRequestHandler extends Thread{
 
-    private SlotManager slotManager;
-    private ServerNetworkManager serverNetworkManager;
-
     private static final long WAIT_TIME_INTERVAL = 100;
 
-    ServerRequestHandler( SlotManager slotManager, ServerNetworkManager serverNetworkManager) {
-        this.slotManager = slotManager;
-        this.serverNetworkManager = serverNetworkManager;
+    ServerRequestHandler() {
     }
 
     @Override
@@ -36,7 +31,7 @@ public class ServerRequestHandler extends Thread{
         ServerMessageQueue messageQueues = ServerMessageQueue.getInstance();
         try {
             log.info("start server request handler.");
-            while (NodeStatusManager.isRunning()) {
+            while (NodeInfoManager.isRunning()) {
 
                 int registerForwardCount = messageQueues.countRequestMessage(ServerRequestType.RegisterForward);
                 if (registerForwardCount > 0) {
@@ -70,6 +65,7 @@ public class ServerRequestHandler extends Thread{
             ServiceInstanceInfo serviceInstanceInfo = new ServiceInstanceInfo(serviceName, instanceIp, servicePort);
 
             int slotNum = CommonUtil.routeSlot(serviceName);
+            SlotManager slotManager = SlotManager.getInstance();
             Slot slot = slotManager.getSlot(slotNum);
 
             if (!slot.isReplica()) {
@@ -87,6 +83,7 @@ public class ServerRequestHandler extends Thread{
         }
 
         responseMessage.buildBuffer();
+        ServerNetworkManager serverNetworkManager = ServerNetworkManager.getInstance();
         serverNetworkManager.sendRequest(message.getFromNodeId(), responseMessage);
     }
     private void handleRegisterForward(ServerMessageQueue messageQueues) {
@@ -105,6 +102,7 @@ public class ServerRequestHandler extends Thread{
             ServiceInstanceInfo serviceInstanceInfo = new ServiceInstanceInfo(serviceName, instanceIp, servicePort);
 
             int slotNum = CommonUtil.routeSlot(serviceName);
+            SlotManager slotManager = SlotManager.getInstance();
             Slot slot = slotManager.getSlot(slotNum);
 
             if (!slot.isReplica()) {
@@ -121,6 +119,7 @@ public class ServerRequestHandler extends Thread{
         }
 
         responseMessage.buildBuffer();
+        ServerNetworkManager serverNetworkManager = ServerNetworkManager.getInstance();
         serverNetworkManager.sendRequest(message.getFromNodeId(), responseMessage);
     }
 

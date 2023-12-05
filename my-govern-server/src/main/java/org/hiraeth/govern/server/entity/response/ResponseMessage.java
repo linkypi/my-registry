@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 public class ResponseMessage extends ServerMessage {
     // 响应时使用， 标识请求是否已处理完成
     private boolean success;
+    private int code;
     private String errorMessage;
 
     public ResponseMessage(){

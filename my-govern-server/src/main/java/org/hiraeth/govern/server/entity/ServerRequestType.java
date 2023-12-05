@@ -33,6 +33,7 @@ public enum ServerRequestType {
     AllocateSlotsConfirm(8),
     RegisterForward(9),
     HeartbeatForward(10),
+    BeAliveAsk(11),
     ;
     ServerRequestType(int value){
         this.value = value;

@@ -1,8 +1,7 @@
 package org.hiraeth.govern.server.node.network;
 
 import lombok.extern.slf4j.Slf4j;
-import org.hiraeth.govern.server.entity.ServerRequestType;
-import org.hiraeth.govern.server.node.core.NodeStatusManager;
+import org.hiraeth.govern.server.node.core.NodeInfoManager;
 import org.hiraeth.govern.server.entity.ServerMessage;
 
 import java.io.DataOutputStream;
@@ -22,17 +21,24 @@ public class ServerWriteThread extends Thread{
      */
     private Socket socket;
     private DataOutputStream outputStream;
+    private String remoteNodeId;
     /**
      * 发送消息队列
      */
     private LinkedBlockingQueue<ServerMessage> sendQueue;
+    private IOThreadRunningSignal ioThreadRunningSignal;
 
-    public ServerWriteThread(Socket socket, LinkedBlockingQueue<ServerMessage> sendQueue){
-        this.socket = socket;
-        this.sendQueue = sendQueue;
+    public ServerWriteThread(String remoteNodeId, Socket socket, LinkedBlockingQueue<ServerMessage> sendQueue,
+                             IOThreadRunningSignal ioThreadRunningSignal) {
+
         try {
+            this.socket = socket;
+            this.sendQueue = sendQueue;
+            this.remoteNodeId = remoteNodeId;
+            this.ioThreadRunningSignal = ioThreadRunningSignal;
             this.outputStream = new DataOutputStream(socket.getOutputStream());
-        }catch (IOException ex){
+            this.setName(remoteNodeId + "-" + ServerWriteThread.class.getSimpleName());
+        } catch (IOException ex) {
             log.error("get data output stream failed..", ex);
         }
     }
@@ -41,31 +47,35 @@ public class ServerWriteThread extends Thread{
 
         log.info("start write io thread for remote node: {}", socket.getRemoteSocketAddress());
 
-        while (NodeStatusManager.isRunning()) {
+        while (NodeInfoManager.isRunning() && ioThreadRunningSignal.getIsRunning()) {
             try {
                 // 阻塞获取待发送请求
                 ServerMessage message = sendQueue.take();
+                if(message.isTerminated()){
+                    break;
+                }
                 byte[] buffer = message.getBuffer().array();
                 outputStream.writeInt(buffer.length);
                 outputStream.write(buffer);
                 outputStream.flush();
 
-                ServerRequestType requestType = ServerRequestType.of(message.getRequestType());
+//                ServerRequestType requestType = ServerRequestType.of(message.getRequestType());
 //                log.info("send message to {}, msg type {}, request type: {}, request id: {}",
 //                       message.getToNodeId(), message.getMessageType(), requestType, message.getRequestId());
-//                log.info("send message to remote node: {}, message type: {}, message size : {} bytes.",
-//                        socket.getRemoteSocketAddress(), message.getMessageType().name(), buffer.length);
             }catch (InterruptedException ex){
                 log.error("get message from send queue failed.", ex);
-                NodeStatusManager.setFatal();
+                NodeInfoManager.setFatal();
             }catch (IOException ex){
                 log.error("send message to remote node failed.", ex);
-                NodeStatusManager.setFatal();
+                NodeInfoManager.setFatal();
             }
         }
 
-        if(NodeStatusManager.isFatal()){
-            log.error("write io thread encounters fatal exception, system is going to shutdown.");
+        String address = socket.getRemoteSocketAddress().toString();
+        if(NodeInfoManager.isFatal()){
+            log.error("write io thread encounters fatal exception with remote node: {}, system is going to shutdown.", remoteNodeId);
+        }else{
+            log.info("write io thread exit of remote node: {}.", remoteNodeId);
         }
     }
 }

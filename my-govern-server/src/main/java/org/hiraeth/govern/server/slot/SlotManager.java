@@ -12,7 +12,7 @@ import org.hiraeth.govern.common.util.FileUtil;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.RemoteServer;
 import org.hiraeth.govern.common.domain.SlotRange;
-import org.hiraeth.govern.server.node.core.NodeStatusManager;
+import org.hiraeth.govern.server.node.core.NodeInfoManager;
 import org.hiraeth.govern.server.slot.registry.SlotHeartbeatThread;
 
 import java.util.*;
@@ -30,6 +30,13 @@ import static org.hiraeth.govern.common.constant.Constant.SLOTS_COUNT;
 @Slf4j
 public class SlotManager {
 
+    public static class Singleton {
+        private static final SlotManager instance = new SlotManager();
+    }
+    public static SlotManager getInstance(){
+        return Singleton.instance;
+    }
+
     // 槽位实际数据，包括了副本槽位
     private static final Map<Integer, Slot> slots = new ConcurrentHashMap();
 
@@ -44,7 +51,7 @@ public class SlotManager {
     private static final String SLOT_FILE_NAME = ".slot";
 
 
-    public SlotManager(){
+    private SlotManager(){
         new SlotHeartbeatThread(this).start();
     }
 
@@ -56,13 +63,15 @@ public class SlotManager {
         return new ArrayList<>(slots.values());
     }
 
-    private void initSlotsAndReplicas(SlotRange slotRange, Map<String, List<SlotReplica>> slotReplicasMap) {
+    private void initSlotsAndReplicas(List<SlotRange> slotRanges, Map<String, List<SlotReplica>> slotReplicasMap) {
 
         // init
         Configuration configuration = Configuration.getInstance();
         String curNodeId = configuration.getNodeId();
-        for (int num = slotRange.getStart(); num <= slotRange.getEnd(); num++) {
-            slots.put(num, new Slot(num, false, curNodeId));
+        for (SlotRange item: slotRanges) {
+            for (int num = item.getStart(); num <= item.getEnd(); num++) {
+                slots.put(num, new Slot(num, false, curNodeId));
+            }
         }
 
         // 初始化槽位副本所在机器地址 以及槽位副本
@@ -71,18 +80,19 @@ public class SlotManager {
             String nodeId = replica.getNodeId();
 
             ServerAddress serverAddr = configuration.getControllerServers().get(nodeId);
-            SlotRange range = replica.getSlotRange();
-            slotReplicaAddresses.put(range, serverAddr);
-
-            for (int num = range.getStart(); num <= range.getEnd(); num++) {
-                slots.put(num, new Slot(num, true, nodeId));
+            List<SlotRange> ranges = replica.getSlotRanges();
+            for (SlotRange range: slotRanges) {
+                slotReplicaAddresses.put(range, serverAddr);
+                for (int num = range.getStart(); num <= range.getEnd(); num++) {
+                    slots.put(num, new Slot(num, true, nodeId));
+                }
             }
         }
     }
 
     public NodeSlotInfo allocateSlots(List<RemoteServer> otherControllerCandidates, List<RemoteServer> allRemoteServers) {
         // 分配slots
-        Map<String, SlotRange> slots = executeSlotsAllocation(otherControllerCandidates);
+        Map<String, List<SlotRange>> slots = executeSlotsAllocation(otherControllerCandidates);
         log.debug("allocate slots: {}", JSON.toJSONString(slots));
 
         // 分配slots副本
@@ -102,23 +112,23 @@ public class SlotManager {
         // 持久化槽位分配结果
         boolean success = persistNodeSlotsInfo(nodeSlotInfo);
         if (!success) {
-            NodeStatusManager.setFatal();
+            NodeInfoManager.setFatal();
             return false;
         }
         // 持久化自身负责的槽位
-        success = persistNodeSlots(nodeSlotInfo.getSlotRange());
+        success = persistNodeSlots(nodeSlotInfo.getSlotRanges());
         if (!success) {
-            NodeStatusManager.setFatal();
+            NodeInfoManager.setFatal();
             return false;
         }
 
         // 持久化完成后初始化内存
-        initSlotsAndReplicas(nodeSlotInfo.getSlotRange(), nodeSlotInfo.getSlotReplicas());
+        initSlotsAndReplicas(nodeSlotInfo.getSlotRanges(), nodeSlotInfo.getSlotReplicas());
 
         return true;
     }
 
-    private Map<String, SlotRange> executeSlotsAllocation(List<RemoteServer> otherRemoteServerNodes) {
+    private Map<String, List<SlotRange>> executeSlotsAllocation(List<RemoteServer> otherRemoteServerNodes) {
 
         int totalServers = otherRemoteServerNodes.size() + 1;
 
@@ -129,13 +139,21 @@ public class SlotManager {
         int controllerSlotsCount = slotsPerNode + reminds;
 
         int index = 0;
-        Map<String, SlotRange> slotsAllocation = new ConcurrentHashMap<>(totalServers);
+        Map<String, List<SlotRange>> slotsAllocation = new ConcurrentHashMap<>(totalServers);
         for (RemoteServer remoteServer : otherRemoteServerNodes) {
-            slotsAllocation.put(remoteServer.getNodeId(), new SlotRange(index, index + slotsPerNode - 1));
+            List<SlotRange> ranges = slotsAllocation.get(remoteServer.getNodeId());
+            if (ranges == null) {
+                ranges = new ArrayList<>();
+            }
+            ranges.add(new SlotRange(index, index + slotsPerNode - 1));
+            slotsAllocation.put(remoteServer.getNodeId(), ranges);
             index += slotsPerNode;
         }
         String nodeId = Configuration.getInstance().getNodeId();
-        slotsAllocation.put(nodeId, new SlotRange(index, index + controllerSlotsCount - 1));
+
+        List<SlotRange> ranges = new ArrayList<>();
+        ranges.add(new SlotRange(index, index + controllerSlotsCount - 1));
+        slotsAllocation.put(nodeId, ranges);
         return slotsAllocation;
     }
 
@@ -145,7 +163,7 @@ public class SlotManager {
      * @param allRemoteServers
      * @return
      */
-    private Map<String, List<SlotReplica>> executeSlotReplicasAllocation(Map<String, SlotRange> slots, List<RemoteServer> allRemoteServers) {
+    private Map<String, List<SlotReplica>> executeSlotReplicasAllocation(Map<String, List<SlotRange>> slots, List<RemoteServer> allRemoteServers) {
 
         // 获取所有节点的nodeId
         List<String> allNodeIds = new ArrayList<>();
@@ -190,9 +208,10 @@ public class SlotManager {
                         .anyMatch(a -> Objects.equals(a.getNodeId(), finalReplicaNodeId));
                 if (!hasAllocate) {
                     List<SlotReplica> slotReplicas = tempReplicas.get(nodeId);
-                    SlotRange range = slots.get(replicaNodeId);
-                    SlotRange slotRange = BeanUtil.copyProperties(range, SlotRange.class);
-                    SlotReplica slotReplica = new SlotReplica(replicaNodeId, slotRange);
+                    List<SlotRange> ranges = slots.get(replicaNodeId);
+
+                    List<SlotRange> slotRanges = BeanUtil.copyToList(ranges, SlotRange.class);
+                    SlotReplica slotReplica = new SlotReplica(replicaNodeId, slotRanges);
                     slotReplicas.add(slotReplica);
                     tempReplicas.put(nodeId, slotReplicas);
                     replicas++;
@@ -205,11 +224,11 @@ public class SlotManager {
         return slotsReplicasMap;
     }
 
-    public NodeSlotInfo buildCurrentNodeSlotInfo(Map<String, SlotRange> slots, Map<String, List<SlotReplica>> slotReplicas){
+    public NodeSlotInfo buildCurrentNodeSlotInfo(Map<String, List<SlotRange>> slots, Map<String, List<SlotReplica>> slotReplicas){
         String nodeId = Configuration.getInstance().getNodeId();
-        SlotRange slotRange = slots.get(nodeId);
-        SlotRange range = BeanUtil.copyProperties(slotRange, SlotRange.class);
-        return new NodeSlotInfo(nodeId, range, slots, slotReplicas);
+        List<SlotRange> slotRanges = slots.get(nodeId);
+        List<SlotRange> ranges = BeanUtil.copyToList(slotRanges, SlotRange.class);
+        return new NodeSlotInfo(nodeId, ranges, slots, slotReplicas);
     }
 
     private boolean persistNodeSlotsInfo(NodeSlotInfo nodeSlotInfo) {
@@ -223,7 +242,7 @@ public class SlotManager {
         return FileUtil.persist(dataDir, fileName, bytes);
     }
 
-    private boolean persistNodeSlots(SlotRange slots) {
+    private boolean persistNodeSlots(List<SlotRange> slots) {
         String dataDir = Configuration.getInstance().getDataDir();
         String jsonString = JSON.toJSONString(slots);
         byte[] bytes = jsonString.getBytes();

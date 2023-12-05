@@ -4,9 +4,9 @@ import com.beust.jcommander.JCommander;
 import lombok.extern.slf4j.Slf4j;
 import org.hiraeth.govern.common.domain.ConfigurationException;
 import org.hiraeth.govern.server.config.Configuration;
-import org.hiraeth.govern.server.node.core.ServerInstance;
+import org.hiraeth.govern.server.node.core.ServerNode;
 import org.hiraeth.govern.server.entity.NodeStatus;
-import org.hiraeth.govern.server.node.core.NodeStatusManager;
+import org.hiraeth.govern.server.node.core.NodeInfoManager;
 
 /**
  * 服务治理平台 Server 端
@@ -29,10 +29,10 @@ public class MicroServiceServer {
                     .build()
                     .parse(args);
 
-            NodeStatusManager.setNodeStatus(NodeStatus.INITIALIZING);
+            NodeInfoManager.setNodeStatus(NodeStatus.INITIALIZING);
             configuration.parse();
 
-            NodeStatusManager.setNodeStatus(NodeStatus.RUNNING);
+            NodeInfoManager.setNodeStatus(NodeStatus.RUNNING);
 
             startNodeServer();
 
@@ -44,19 +44,19 @@ public class MicroServiceServer {
             System.exit(1);
         }
 
-        if(NodeStatusManager.getNodeStatus() == NodeStatus.SHUTDOWN){
+        if(NodeInfoManager.getNodeStatus() == NodeStatus.SHUTDOWN){
             log.info("system is going to shutdown normally.");
-        }else if(NodeStatusManager.getNodeStatus() == NodeStatus.FATAL){
+        }else if(NodeInfoManager.getNodeStatus() == NodeStatus.FATAL){
             log.error("system is going to shutdown because of fatal error.");
         }
     }
 
     private static void startNodeServer() {
-        new ServerInstance().start();
+        new ServerNode().start();
     }
 
     private void waitForShutdown() throws InterruptedException {
-        while (NodeStatusManager.getNodeStatus() == NodeStatus.RUNNING){
+        while (NodeInfoManager.getNodeStatus() == NodeStatus.RUNNING){
             Thread.sleep(SHUTDOWN_CHECK_INTERVAL);
         }
     }

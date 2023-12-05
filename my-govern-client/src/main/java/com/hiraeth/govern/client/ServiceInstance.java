@@ -90,6 +90,8 @@ public class ServiceInstance {
     private void checkConnection(ServerAddress serverAddress) throws IOException, InterruptedException {
         if(!serverConnectionManager.hasConnect(serverAddress.toString())){
             routeServerConnection = connectServer(serverAddress);
+        }else{
+            routeServerConnection = serverConnectionManager.get(serverAddress.toString());
         }
     }
 

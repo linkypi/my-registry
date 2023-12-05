@@ -25,10 +25,10 @@ import java.util.Map;
 public class SlotAllocateResult extends RequestMessage {
 
     public SlotAllocateResult(){}
-    private Map<String, SlotRange> slots;
+    private Map<String, List<SlotRange>> slots;
     private Map<String, List<SlotReplica>> slotReplicas;
 
-    public SlotAllocateResult(Map<String, SlotRange> slots, Map<String, List<SlotReplica>> slotReplicas) {
+    public SlotAllocateResult(Map<String, List<SlotRange>> slots, Map<String, List<SlotReplica>> slotReplicas) {
         super();
         this.requestType = ServerRequestType.AllocateSlots.getValue();
         this.slots = slots;
@@ -55,12 +55,12 @@ public class SlotAllocateResult extends RequestMessage {
 
         ByteBuffer buffer = messageBase.getBuffer();
         String json = CommonUtil.readStr(buffer);
-        Map<String, SlotRange> slotRangMap = new HashMap<>();
-        Map<String, JSONObject> sourceMap = (Map) JSON.parse(json);
+        Map<String, List<SlotRange>> slotRangMap = new HashMap<>();
+        Map<String, JSONArray> sourceMap = (Map) JSON.parse(json);
         for (String item : sourceMap.keySet()) {
-            JSONObject jsonObject = sourceMap.get(item);
-            SlotRange slotRange = JSON.parseObject(jsonObject.toJSONString(), SlotRange.class);
-            slotRangMap.put(item, slotRange);
+            String jsonArr = sourceMap.get(item).toString();
+            List<SlotRange> slotRanges = JSON.parseArray(jsonArr, SlotRange.class);
+            slotRangMap.put(item, slotRanges);
         }
 
         String jsonStr = CommonUtil.readStr(buffer);

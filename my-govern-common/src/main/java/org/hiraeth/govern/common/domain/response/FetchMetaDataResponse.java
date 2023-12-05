@@ -2,6 +2,7 @@ package org.hiraeth.govern.common.domain.response;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import lombok.Getter;
 import lombok.Setter;
@@ -24,7 +25,7 @@ import java.util.Map;
 @Setter
 public class FetchMetaDataResponse extends Response {
 
-    private Map<String, SlotRange> slots;
+    private Map<String, List<SlotRange>> slots;
     private List<ServerAddress> serverAddresses;
 
     public FetchMetaDataResponse() {
@@ -59,12 +60,12 @@ public class FetchMetaDataResponse extends Response {
         buffer.get(bytes);
         String json = new String(bytes);
 
-        Map<String, SlotRange> slotRangMap = new HashMap<>();
-        Map<String, JSONObject> sourceMap = (Map) JSON.parse(json);
+        Map<String, List<SlotRange>> slotRangMap = new HashMap<>();
+        Map<String, JSONArray> sourceMap = (Map) JSON.parse(json);
         for (String item : sourceMap.keySet()) {
-            JSONObject jsonObject = sourceMap.get(item);
-            SlotRange slotRange = new SlotRange(jsonObject.getIntValue("start"), jsonObject.getIntValue("end"));
-            slotRangMap.put(item, slotRange);
+            String jsonArr = sourceMap.get(item).toString();
+            List<SlotRange> ranges = JSON.parseArray(jsonArr, SlotRange.class);
+            slotRangMap.put(item, ranges);
         }
 
         FetchMetaDataResponse response = BeanUtil.copyProperties(baseResponse, FetchMetaDataResponse.class);

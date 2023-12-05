@@ -23,22 +23,24 @@ import java.util.*;
 @Slf4j
 public class Controller {
 
-    private RemoteNodeManager remoteNodeManager;
-    private ServerNetworkManager serverNetworkManager;
-    private SlotManager slotManager;
+    private Controller() {
+    }
 
-    public Controller(RemoteNodeManager remoteNodeManager, ServerNetworkManager serverNetworkManager, SlotManager slotManager) {
-        this.remoteNodeManager = remoteNodeManager;
-        this.serverNetworkManager = serverNetworkManager;
-        this.slotManager = slotManager;
+    public static class Singleton {
+        private static final Controller instance = new Controller();
+    }
+    public static Controller getInstance(){
+        return Singleton.instance;
     }
 
     public NodeSlotInfo allocateSlots() {
 
         log.debug("start allocate slots...");
+        RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
         List<RemoteServer> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
         List<RemoteServer> allRemoteServers = remoteNodeManager.getAllRemoteServers();
 
+        SlotManager slotManager = SlotManager.getInstance();
         NodeSlotInfo nodeSlotInfo = slotManager.allocateSlots(otherControllerCandidates, allRemoteServers);
         syncSlots(nodeSlotInfo.getSlots(), nodeSlotInfo.getSlotReplicas());
 
@@ -53,7 +55,9 @@ public class Controller {
         try {
             ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
             Set<String> confirmSet = new HashSet<>();
-            while (NodeStatusManager.isRunning()) {
+            RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
+
+            while (NodeInfoManager.isRunning()) {
                 if (messageQueue.countRequestMessage(ServerRequestType.AllocateSlotsAck) == 0) {
                     Thread.sleep(500);
                     continue;
@@ -71,6 +75,7 @@ public class Controller {
                     SlotAllocateResultConfirm confirmMessage= new SlotAllocateResultConfirm(nodeSlotInfo);
                     confirmMessage.buildBuffer();
 
+                    ServerNetworkManager serverNetworkManager = ServerNetworkManager.getInstance();
                     for (RemoteServer remoteServer : remoteNodeManager.getOtherControllerCandidates()) {
                         serverNetworkManager.sendRequest(remoteServer.getNodeId(), confirmMessage);
                         log.info("send slot allocation confirm to remote node {}.", remoteServer.getNodeId());
@@ -80,22 +85,24 @@ public class Controller {
             }
         } catch (Exception ex) {
             log.error("wait for ack of slot allocation result occur error", ex);
-            NodeStatusManager.setFatal();
+            NodeInfoManager.setFatal();
         }
     }
 
-    private void syncSlots(Map<String, SlotRange> slots, Map<String, List<SlotReplica>> slotReplicas) {
+    private void syncSlots(Map<String, List<SlotRange>> slots, Map<String, List<SlotReplica>> slotReplicas) {
         try {
             SlotAllocateResult slotAllocateResult = new SlotAllocateResult(slots, slotReplicas);
             slotAllocateResult.buildBuffer();
 
+            RemoteNodeManager remoteNodeManager = RemoteNodeManager.getInstance();
+            ServerNetworkManager serverNetworkManager = ServerNetworkManager.getInstance();
             for (RemoteServer remoteServer : remoteNodeManager.getOtherControllerCandidates()) {
                 serverNetworkManager.sendRequest(remoteServer.getNodeId(), slotAllocateResult);
                 log.info("sync slots to remote node {} : {}.", remoteServer.getNodeId(), JSON.toJSONString(slots));
             }
         } catch (Exception ex) {
             log.error("send allocation slots to other candidates occur error: {}", JSON.toJSONString(slots), ex);
-            NodeStatusManager.setFatal();
+            NodeInfoManager.setFatal();
         }
     }
 

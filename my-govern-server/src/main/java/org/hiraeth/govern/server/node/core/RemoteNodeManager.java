@@ -6,10 +6,7 @@ import org.hiraeth.govern.common.domain.ServerAddress;
 import org.hiraeth.govern.server.config.Configuration;
 import org.hiraeth.govern.server.entity.RemoteServer;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -21,6 +18,16 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class RemoteNodeManager {
+
+    private RemoteNodeManager() {
+    }
+
+    public static class Singleton {
+        private static final RemoteNodeManager instance = new RemoteNodeManager();
+    }
+    public static RemoteNodeManager getInstance(){
+        return Singleton.instance;
+    }
     private static final Map<String, RemoteServer> remoteServerNodes = new ConcurrentHashMap<>();
 
     public List<ServerAddress> getAllOnlineServerAddresses(){
@@ -30,9 +37,25 @@ public class RemoteNodeManager {
         return addresses;
     }
 
+    public ServerAddress getServerAddress(String remoteNodeId) {
+        Configuration configuration = Configuration.getInstance();
+        Optional<ServerAddress> first = configuration.getControllerServers().values().stream().filter(
+                (a) -> remoteNodeId.equals(a.getNodeId())).findFirst();
+        return first.orElse(null);
+    }
+
     public void addRemoteServerNode(RemoteServer serverNode){
         remoteServerNodes.put(serverNode.getNodeId(), serverNode);
         log.info("add remote server node: {}", JSON.toJSONString(serverNode));
+    }
+
+    public void removeRemoteServerNode(String remoteNodeId){
+        remoteServerNodes.remove(remoteNodeId);
+        log.info("remove remote server node: {}", remoteNodeId);
+    }
+
+    public boolean isConnected(String remoteNodeId){
+        return remoteServerNodes.containsKey(remoteNodeId);
     }
 
     public int getTotalCandidate(){
