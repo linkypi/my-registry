@@ -7,9 +7,9 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="my-govern-server" />
-        <module name="my-govern-client" />
-        <module name="my-govern-common" />
+        <module name="my-registry-server" />
+        <module name="my-registry-client" />
+        <module name="my-registry-common" />
       </profile>
     </annotationProcessing>
   </component>

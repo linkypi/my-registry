@@ -5,13 +5,13 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.hiraeth.govern</groupId>
-  <artifactId>my-govern</artifactId>
+  <artifactId>my-registry</artifactId>
   <packaging>pom</packaging>
   <version>1.0-SNAPSHOT</version>
   <modules>
-    <module>my-govern-server</module>
-    <module>my-govern-client</module>
-    <module>my-govern-common</module>
+    <module>my-registry-server</module>
+    <module>my-registry-client</module>
+    <module>my-registry-common</module>
   </modules>
 
   <name>my-govern</name>
