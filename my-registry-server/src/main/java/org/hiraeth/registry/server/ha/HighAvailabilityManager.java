@@ -46,8 +46,6 @@ public class HighAvailabilityManager {
         private static final HighAvailabilityManager instance = new HighAvailabilityManager();
     }
 
-    private static final long WAIT_FRO_TIMEOUT = 5000;
-    private static final long DETECT_RETRY_TIMES = 3;
     public static HighAvailabilityManager getInstance() {
         return HighAvailabilityManager.Singleton.instance;
     }
@@ -102,19 +100,19 @@ public class HighAvailabilityManager {
         }
     }
 
-    static class Worker extends Thread{
+    static class Worker extends Thread {
         @Override
         public void run() {
             Configuration configuration = Configuration.getInstance();
 
-            while (true){
+            while (true) {
                 try {
                     String disconnectedNodeId = disconnectedQueue.take();
 
                     // 向其他节点确认 remoteNodeId 是否已经断开连接, 因为有可能仅仅只是当前节点与 remoteNodeId 无法连接
                     // 即单节点的决策无法决定集群决策
-                    boolean isDown = detectAliveFromOtherCandidates(disconnectedNodeId);
-                    if(!isDown) {
+                    boolean isDown = AliveDetector.detectAliveFromOtherCandidates(disconnectedNodeId, remoteNodeManager, serverNetworkManager);
+                    if (!isDown) {
                         log.debug("current node is disconnected from {}, but most other " +
                                 "candidate controller connect normally.", disconnectedNodeId);
                         continue;
@@ -124,7 +122,7 @@ public class HighAvailabilityManager {
                     String controllerId = nodeInfoManager.getControllerId();
 
                     // 若当前节点为 controller 节点, 则 remoteNode 必定不是 controller 节点
-                    if(disconnectedNodeId.equals(controllerId)){
+                    if (disconnectedNodeId.equals(controllerId)) {
                         // leader 已宕机, 更新集群状态, 重新发起选举
                         ElectionStage.setStatus(ElectionStage.ELStage.ELECTING);
                         NodeInfoManager.getInstance().setElectingStage();
@@ -133,7 +131,7 @@ public class HighAvailabilityManager {
                         ElectionResult electionResult = controllerCandidate.electController();
                         ServerRole serverRole = nodeInfoManager.updateToLeading(electionResult);
 
-                        if(serverRole == ServerRole.Controller){
+                        if (serverRole == ServerRole.Controller) {
                             // 重新分配槽位
                             Controller controller = Controller.getInstance();
                             NodeSlotInfo newNodeSlotInfo = controller.allocateSlots();
@@ -147,80 +145,18 @@ public class HighAvailabilityManager {
 
                             // 更新节点槽位信息
                             //nodeInfoManager.setNodeSlotInfo(nodeSlotInfo);
-                        }else{
+                        } else {
                             // 接收槽位分配
 //                            waitForControllerSlotResult();
                         }
 
 
-                    }else{
+                    } else {
                         // leader 节点服务正常, 普通服务节点宕机, 均衡分配槽位数据
                     }
 
-                }catch (Exception ex){
+                } catch (Exception ex) {
                     log.error("high available manager worker occur error", ex);
-                }
-            }
-        }
-
-        private static boolean detectAliveFromOtherCandidates(String disconnectedNodeId) throws InterruptedException {
-
-            BeAliveAskRequest.Status status = detectAlive(disconnectedNodeId);
-
-            // 若超时返回 null 则重试
-            int retryTime = 0;
-            while (status == null && retryTime < DETECT_RETRY_TIMES){
-                status = detectAlive(disconnectedNodeId);
-                retryTime ++;
-            }
-
-            return status == null || BeAliveAskRequest.Status.Down == status;
-        }
-
-        private static BeAliveAskRequest.Status detectAlive(String disconnectedNodeId) throws InterruptedException {
-            BeAliveAskRequest beAliveAskRequest = new BeAliveAskRequest(disconnectedNodeId);
-            ServerMessageQueue messageQueue = ServerMessageQueue.getInstance();
-
-            // 向其他节点发送远程节点是否存活的请求
-            List<RemoteServer> otherControllerCandidates = remoteNodeManager.getOtherControllerCandidates();
-            for (RemoteServer remoteServer: otherControllerCandidates){
-                serverNetworkManager.sendRequest(remoteServer.getNodeId(), beAliveAskRequest);
-            }
-
-            Set<String> downSet = new HashSet<>(otherControllerCandidates.size());
-            Set<String> aliveSet = new HashSet<>(otherControllerCandidates.size());
-            LocalDateTime startTime = LocalDateTimeUtil.now();
-
-            while (true){
-                Thread.sleep(200);
-
-                // 超出 WAIT_FRO_TIMEOUT 时间仍获得响应则返回null
-                LocalDateTime now = LocalDateTimeUtil.now();
-                Duration duration = LocalDateTimeUtil.between(startTime, now).minusMillis(WAIT_FRO_TIMEOUT);
-                if (!duration.isNegative()) {
-                    return null;
-                }
-
-                int count = messageQueue.countResponseMessage(ServerRequestType.BeAliveAsk);
-                if(count == 0 ){
-                    continue;
-                }
-                ResponseMessage response = messageQueue.takeResponseMessage(ServerRequestType.BeAliveAsk);
-                if(response != null && response.isSuccess()){
-                    int quorum = otherControllerCandidates.size() / 2 + 1;
-                    if(response.getCode() == BeAliveAskRequest.Status.Down.getValue()){
-                        log.debug("the disconnected remote node {} is down by {} detection.", disconnectedNodeId, response.getFromNodeId());
-                        downSet.add(response.getFromNodeId());
-                        if(downSet.size() >= quorum){
-                            return BeAliveAskRequest.Status.Down;
-                        }
-                    }else{
-                        log.debug("the disconnected remote node {} is alive by {} detection.", disconnectedNodeId, response.getFromNodeId());
-                        aliveSet.add(response.getFromNodeId());
-                        if(aliveSet.size() >= quorum){
-                            return BeAliveAskRequest.Status.Alive;
-                        }
-                    }
                 }
             }
         }

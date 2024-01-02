@@ -73,11 +73,15 @@ public class ServerNode {
             // 等待其他controller节点都连接完成
             serverNetworkManager.waitAllTheOtherControllerConnected();
 
+            // start election
             ElectionResult electionResult = ControllerCandidate.getInstance().electController();
+
+            // update election result
             NodeInfoManager nodeInfoManager = NodeInfoManager.getInstance();
             ServerRole serverRole = nodeInfoManager.updateToLeading(electionResult);
 
             if(serverRole == ServerRole.Controller){
+                // allocate slots
                 Controller controller = Controller.getInstance();
                 NodeSlotInfo nodeSlotInfo = controller.allocateSlots();
 
