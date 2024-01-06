@@ -54,3 +54,36 @@
 ### 优化
 1. 请求接收及发送队列可以考虑使用 Disruptor 高性能无锁队列
 2. Leader选举功能可使用 JRaft 实现
+
+### 服务配置
+```
+node.ip=127.0.0.1
+# 内部通信端口
+node.internal.port=2661
+
+cluster.node.count=3
+
+# 客户端通信端口
+node.client.http.port=8661
+node.client.tcp.port=12661
+
+# 是否为controller候选节点
+is.controller.candidate=false
+
+# 数据存储目录
+data.dir=C:\\Users\\troub\\Downloads\\server1
+log.dir=C:\\Users\\troub\\Downloads\\server1\\logs
+
+# controller 候选节点
+controller.candidate.servers=127.0.0.1:2664,127.0.0.1:2665,127.0.0.1:2666
+
+# 分片数量，即一份完整数据会被拆分为几部分存储，每一部分即一个分片
+# 如集群有三个服务节点，则一份完整数据应拆分为三份存储，每个节点存储一份
+number.of.shards=3
+# 副本数量，为保证数据高可用，每一份分片会存储几个副本分片, 副本分片只能存储在其他节点
+# 若集群有N个服务节点，那么副本分片最多仅可以设置为 N-1 份，但至少保证一份
+number.of.replicas=2
+
+# 数据写入集群后最少同步副本数
+min.sync.replicas=2
+```
